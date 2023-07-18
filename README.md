@@ -47,7 +47,7 @@ Container C includes:
 1. Install Docker and Docker Compose.
 2. Clone this repository.
 3. Navigate to the project directory.
-4. Run the following command to start the containers: `docker-compose up`.
+4. Run the following command to start the containers: `docker-compose up --build`.
 5. Access the web server's interface by visiting the appropriate URL in your browser.
 
 ## Contributing<a name="contributing"></a>
