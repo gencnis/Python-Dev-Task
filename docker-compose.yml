@@ -5,11 +5,25 @@ services:
     build:
       context: ./Container_A
       dockerfile: Dockerfile
-    container_name: container_a  # Custom container name
+    container_name: container_a 
     ports:
       - "8000:8000"
     volumes:
       - ./Container_A:/app
+    networks:
+      - Interpol
+    depends_on:
+      - container_c
+
+  container_b:
+    image: container_b
+    build:
+      context: ./Container_B
+      dockerfile: Dockerfile
+    container_name: container_b 
+    volumes:
+      - ./Container_B:/app
+
     networks:
       - Interpol
     depends_on:
@@ -21,6 +35,9 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
+    expose:
+      - "5672"
+      - "15672"
     ports:
       - "5673:5672"
       - "15672:15672"

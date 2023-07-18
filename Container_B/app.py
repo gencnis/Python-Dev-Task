@@ -23,6 +23,7 @@ The script also includes helper functions for reading data from a CSV file, clea
 """
 
 
+import time
 from flask import Flask, render_template, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 import csv
@@ -40,7 +41,7 @@ class Person(db.Model):
     forename = db.Column(db.String(100))
     date_of_birth = db.Column(db.String(100))
     entity_id = db.Column(db.String(100))
-    nationalities = db.Column(db.String(100))
+    nationalities = db.Column(db.String)
     name = db.Column(db.String(100))
     image = db.Column(db.String(1000))
 
@@ -58,11 +59,11 @@ def index():
 @app.route('/filter', methods=['POST'])
 def filter_data():
     """Filter the data based on the provided criteria and return the results."""
-    forename = request.form.get('forename')
+    forename = request.form.get('name')
     date_of_birth = request.form.get('date_of_birth')
     entity_id = request.form.get('entity_id')
     nationalities = request.form.get('nationalities')
-    name = request.form.get('name')
+    name = request.form.get('lastname')
     image = request.form.get('image')
 
     # Filter the data based on the provided criteria
@@ -85,17 +86,6 @@ def filter_data():
     return render_template('results.html', results=results)
 
 
-def read_data(file_path):
-    """Read data from the CSV file and return a list of dictionaries.
-        For the feature and testig purposes."""
-    data = []
-    with open(file_path, 'r') as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            data.append(row)
-    return data
-
-
 
 def clean_database():
     """Clean the whole database by deleting all records."""
@@ -106,15 +96,24 @@ def clean_database():
 
 def consume_data():
     """Consume data from RabbitMQ and store it in the database."""
-    connection_parameters = pika.ConnectionParameters("rabbitmq")
+    print("Sleeping")
+    time.sleep(25)
+    print("Done sleeping")
+    connection_parameters = pika.ConnectionParameters("container_c")
     connection = pika.BlockingConnection(connection_parameters)
     channel = connection.channel()
-    channel.queue_declare(queue='box')
+    channel.queue_declare(queue='interpol_data')
 
     def callback(ch, method, properties, body):
         try:
-            # Decode the message body
-            data = json.loads(body.decode())
+            # Attempt to decode the message body as JSON
+            try:
+                data = json.loads(body.decode())
+            except json.JSONDecodeError:
+                # If JSON decoding fails, try fixing the format by replacing single quotes with double quotes
+                body_str = body.decode()
+                fixed_body_str = body_str.replace("'", '"')
+                data = json.loads(fixed_body_str)
 
             # Check if the required keys are present in the data
             if 'entity_id' not in data:
@@ -134,13 +133,15 @@ def consume_data():
                 print(f"Old data deleted for entity ID: {entity_id}")
 
             # Store the data in the database
+            image_href = data.get('image', {}).get('href')
+            nationalities_json = json.dumps(data.get('nationalities', []))
             person = Person(
-                forename=data['forename'],
-                date_of_birth=data['date_of_birth'],
+                forename=data.get('name'),
+                date_of_birth=data.get('date_of_birth'),
                 entity_id=data['entity_id'],
-                nationalities=data['nationalities'],
-                name=data['name'],
-                image=data['image']
+                nationalities=nationalities_json,
+                name=data.get('lastname'),
+                image=image_href
             )
             db.session.add(person)
             db.session.commit()
@@ -152,8 +153,9 @@ def consume_data():
         except KeyError as e:
             print(f"Error accessing key in JSON message: {str(e)}")
 
+
     # Set up the callback function to consume messages from the 'letterbox' queue
-    channel.basic_consume(queue='box', auto_ack=True, on_message_callback=callback)
+    channel.basic_consume(queue='interpol_data', auto_ack=True, on_message_callback=callback)
 
     # Start consuming messages from the RabbitMQ queue
     print("Starting consuming")
@@ -174,7 +176,7 @@ def main():
         print("---- Data consumed. ----")
 
         # Run the Flask application in debug mode
-        app.run(debug=True, threaded=True)
+        app.run(debug=True, threaded=True, host='0.0.0.0')
 
         
 

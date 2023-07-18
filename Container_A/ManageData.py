@@ -1,3 +1,21 @@
+"""
+ManageData.py
+
+This script contains the InterpolDataExtractor class, which is responsible for extracting data from the Interpol API,
+cleaning it, and publishing the cleaned data to a RabbitMQ queue.
+
+Dependencies:
+- ExtractCountries: Custom module for extracting nationalities from the Interpol website
+- RabbitMQConnection: Custom module for establishing a connection to RabbitMQ
+- string: Python module for working with string constants
+- time: Python module for adding delays between requests
+- requests: Python library for making HTTP requests
+- json: Python module for working with JSON data
+
+@Author: Nisanur Genc
+
+"""
+
 from ExtractCountries import InterpolCountriesExtractor
 from RabbitMQConnection import RabbitMQConnection
 import string
@@ -7,11 +25,25 @@ import json
 
 class InterpolDataExtractor:
     def __init__(self, hostname, port, queue_name):
+        """
+        Constructor for the InterpolDataExtractor class.
+
+        Parameters:
+        - hostname (str): The hostname or IP address of the RabbitMQ server.
+        - port (int): The port number for the RabbitMQ server (default is usually 5672).
+        - queue_name (str): The name of the queue to which data will be published.
+        """
         self.total_cleaned_data = 0
         self.cleaned_data = set()  # Change from list to set
         self.rabbitmq_publisher = RabbitMQConnection(hostname, port, queue_name)
 
     def clean_and_publish_data(self, notices):
+        """
+        Clean the data for each notice and publish it to RabbitMQ.
+
+        Parameters:
+        - notices (list): A list of Interpol notices obtained from the API response.
+        """
         clean_data = []
 
         for notice in notices:
@@ -45,6 +77,17 @@ class InterpolDataExtractor:
     
 
     def extract_by_wanted(self, nationalities, url):
+        """
+        Extract Interpol data by nationality (wantedBy).
+
+        Parameters:
+        - nationalities (list): A list of nationalities extracted from the Interpol website.
+        - url (str): The base URL for the Interpol API.
+
+        Returns:
+        - more_than_160 (list): A list of nationalities with more than 160 entries.
+        """
+
         more_than_160 = []
 
         for wanted_by in nationalities:
@@ -99,6 +142,17 @@ class InterpolDataExtractor:
 
 
     def extract_by_gender(self, more_than_160_wanted, url):
+        """
+        Extract Interpol data by gender for nationalities with more than 160 entries.
+
+        Parameters:
+        - more_than_160_wanted (list): A list of nationalities with more than 160 entries.
+        - url (str): The base URL for the Interpol API.
+
+        Returns:
+        - more_than_160 (list): A list of tuples (wantedBy, gender) with more than 160 entries.
+        """
+            
         more_than_160 = []
         genders = ["U", "F", "M"]
 
@@ -155,6 +209,17 @@ class InterpolDataExtractor:
         return more_than_160
 
     def extract_by_age(self, more_than_160_genders, url):
+        """
+        Extract Interpol data by age for nationalities with more than 160 entries.
+
+        Parameters:
+        - more_than_160_genders (list): A list of tuples (wantedBy, gender) with more than 160 entries.
+        - url (str): The base URL for the Interpol API.
+
+        Returns:
+        - more_than_160 (list): A list of tuples (wantedBy, gender, age_interval) with more than 160 entries.
+        """
+            
         age_intervals = [  # Define a list of age intervals
             (18, 25),
             (25, 25),
@@ -234,6 +299,18 @@ class InterpolDataExtractor:
         return more_than_160
     
     def extract_by_nationality(self, more_than_160_age, url, nationalities):
+        """
+        Extract Interpol data by nationality for age-gender combinations with more than 160 entries.
+
+        Parameters:
+        - more_than_160_age (list): A list of tuples (wantedBy, gender, age_interval) with more than 160 entries.
+        - url (str): The base URL for the Interpol API.
+        - nationalities (list): A list of nationalities extracted from the Interpol website.
+
+        Returns:
+        - more_than_160 (list): A list of tuples (wantedBy, gender, age_interval, nationality) with more than 160 entries.
+        """
+
         more_than_160 = []
         
         for wantedBy, gender, age_interval in more_than_160_age:
@@ -277,20 +354,48 @@ class InterpolDataExtractor:
 
 
     def extract_by_letter(self, more_than_160_nat, url):
+        """
+        Extract Interpol data by letter (forename and name) for nationality-age-gender combinations with more than 160 entries.
+
+        Parameters:
+        - more_than_160_nat (list): A list of tuples (wantedBy, gender, age_interval, nationality) with more than 160 entries.
+        - url (str): The base URL for the Interpol API.
+
+        Returns:
+        - more_than_160 (list): A list of tuples (wantedBy, gender, age_interval, nationality) that failed to fetch data.
+        """
+
         more_than_160 = []
 
         def make_request(self, url, params, more_than_160):
+            """
+            Make an HTTP request to the Interpol API with retries.
+
+            This method handles making an HTTP GET request to the Interpol API with the given parameters.
+            It also includes retry logic to handle potential network or API issues.
+
+            Parameters:
+            - url (str): The base URL for the Interpol API.
+            - params (dict): The parameters to include in the API request.
+            - more_than_160 (set): A set to store the failed requests.
+
+            Returns:
+            - list: A list of notice objects extracted from the API response.
+            """
+
             max_retries = 3
             for retry in range(max_retries):
                 try:
+                    # Make the HTTP request
                     r = requests.get(url, params=params)
-                    r.raise_for_status()
-                    response = r.json()
+                    r.raise_for_status()  # Check for HTTP errors
+                    response = r.json()  # Parse the response as JSON
 
                     if "_embedded" in response and "notices" in response["_embedded"]:
                         notices = response["_embedded"]["notices"]
                         return notices
                     else:
+                        # The response did not contain the expected data
                         print("Unexpected response format or missing data.")
                         return []
 
@@ -353,6 +458,11 @@ class InterpolDataExtractor:
 
 
     def start_extraction(self):
+        """
+        Start the data extraction process.
+
+        This method calls different extraction methods to fetch data based on certain criteria.
+        """
         interpol_countries_extractor = InterpolCountriesExtractor("https://www.interpol.int/How-we-work/Notices/View-Red-Notices")
         nationalities = interpol_countries_extractor.get_extracted_nationalities()
 
