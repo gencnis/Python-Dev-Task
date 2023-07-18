@@ -13,8 +13,12 @@ class RabbitMQConnection:
         self.data_queue = Queue()
 
         # Call the connect() method to establish the RabbitMQ connection
-        self.connect()
         
+        print("Sleeping")
+        time.sleep(15)
+        print("Done sleeping")
+        self.connect()
+
     def connect(self):
         try:
             self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.hostname, port=self.port))
