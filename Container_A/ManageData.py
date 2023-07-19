@@ -24,7 +24,7 @@ import requests
 import json
 
 class InterpolDataExtractor:
-    def __init__(self, hostname, port, queue_name):
+    def __init__(self, hostname, port, queue_name, max_queue_length):
         """
         Constructor for the InterpolDataExtractor class.
 
@@ -35,7 +35,7 @@ class InterpolDataExtractor:
         """
         self.total_cleaned_data = 0
         self.cleaned_data = set()  # Change from list to set
-        self.rabbitmq_publisher = RabbitMQConnection(hostname, port, queue_name)
+        self.rabbitmq_publisher = RabbitMQConnection(hostname, port, queue_name, max_queue_length)
 
     def clean_and_publish_data(self, notices):
         """

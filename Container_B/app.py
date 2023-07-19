@@ -136,7 +136,7 @@ def main():
         print("---- Database created. ----")
 
         # Create an instance of RabbitMQConsumer
-        rabbitmq_consumer = RabbitMQConsumer(hostname="container_c", port=5672, queue_name="interpol_data", max_queue_length = 50000)
+        rabbitmq_consumer = RabbitMQConsumer(hostname="container_c", port=5672, queue_name="interpol_data")
 
         # Override the get_data() method to handle the data in the RabbitMQConsumer
         def store_data(data):

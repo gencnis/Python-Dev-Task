@@ -18,7 +18,7 @@ import pika
 import time
 
 class RabbitMQConnection:
-    def __init__(self, hostname, port, queue_name, max_queue_length):
+    def __init__(self, hostname, port, queue_name):
         """
         Constructor for the RabbitMQConnection class.
 
@@ -34,7 +34,6 @@ class RabbitMQConnection:
         self.channel = None
         self.connected = False
         self.data_queue = queue.Queue()
-        self.max_queue_length = max_queue_length
 
         # Sleep for a few seconds to allow other components to initialize before connecting to RabbitMQ
         print("Sleeping for 5 seconds to allow other components to initialize...")
@@ -62,7 +61,7 @@ class RabbitMQConnection:
                     pika.ConnectionParameters(host=self.hostname, port=self.port)
                 )
                 self.channel = self.connection.channel()
-                self.channel.queue_declare(queue=self.queue_name, arguments={'x-max-length': self.max_queue_length})
+                self.channel.queue_declare(queue=self.queue_name)
                 self.connected = True
                 print("Connection to RabbitMQ established.")
             except pika.exceptions.AMQPConnectionError as e:
