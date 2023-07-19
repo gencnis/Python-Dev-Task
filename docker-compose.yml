@@ -23,18 +23,33 @@ services:
     container_name: container_b 
     volumes:
       - ./Container_B:/app
-
     networks:
       - Interpol
     depends_on:
       - container_c
+      - postgres
+
+
+  postgres:
+    image: postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: bxhrYukUTq/6SJGSKvZzH/gCFyn/d5iaHraBuLBvznI=
+      POSTGRES_DB: my_db
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data     
+    networks:
+      - Interpol
+
   container_c:
     image: rabbitmq:management
     container_name: container_c
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
-
     expose:
       - "5672"
       - "15672"
@@ -45,6 +60,7 @@ services:
       - ./advanced.config:/etc/rabbitmq/advanced.config  # Bind-mount the advanced.config file
     networks:
       - Interpol
+
 
 networks:
   Interpol:

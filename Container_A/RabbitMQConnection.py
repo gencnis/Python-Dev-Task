@@ -13,6 +13,7 @@ Dependencies:
 
 """
 
+import queue
 import pika
 import time
 
@@ -32,7 +33,7 @@ class RabbitMQConnection:
         self.connection = None
         self.channel = None
         self.connected = False
-        self.data_queue = Queue()
+        self.data_queue = queue.Queue()
 
         # Sleep for a few seconds to allow other components to initialize before connecting to RabbitMQ
         print("Sleeping for 5 seconds to allow other components to initialize...")

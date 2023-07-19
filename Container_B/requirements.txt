@@ -3,3 +3,4 @@ SQLAlchemy==1.4.23
 pika==1.2.0
 flask_sqlalchemy
 psycopg2
+Flask-SQLAlchemy

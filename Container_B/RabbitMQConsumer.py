@@ -20,12 +20,13 @@ class RabbitMQConsumer:
         self.connected = False
 
         # Sleep for a few seconds to allow other components to initialize before connecting to RabbitMQ
-        print("Sleeping for 5 seconds to allow other components to initialize...")
-        time.sleep(5)
+        print("Sleeping for 25 seconds to allow other components to initialize...")
+        time.sleep(25)
         print("Done sleeping")
 
         # Establish the RabbitMQ connection
         self.connect()
+
 
     def connect(self):
         """
@@ -59,13 +60,14 @@ class RabbitMQConsumer:
         if not self.is_connected():
             print("Failed to establish connection after retries.")
         else:
-            # Connection successful, publish any queued data
-            while not self.data_queue.empty():
-                queued_data = self.data_queue.get()
-                self.channel.basic_publish(exchange='',
-                                           routing_key=self.queue_name,
-                                           body=str(queued_data))
-                print("Queued data published to RabbitMQ:", queued_data)
+            # Connection successful, start consuming data
+            self.consume_data()
+
+
+    # The get_data() method to process the data
+    def get_data(self, data):
+        # This method will be overridden by the parent class (app.py) to handle the data.
+        pass
 
     def is_connected(self):
         """
@@ -86,14 +88,11 @@ class RabbitMQConsumer:
             print("Connection lost. Attempting to reconnect...")
             self.connect()
 
-    def consume_data(self, data_callback):
+    def consume_data(self):
         """
         Consume data from RabbitMQ and store it in the PostgreSQL database.
 
         This method will handle reconnections and consume data from RabbitMQ using the callback function.
-
-        Parameters:
-        - data_callback (function): The callback function to be executed with the consumed data.
         """
     
         print("Sleeping for 5 seconds to allow other components to initialize...")
@@ -116,8 +115,10 @@ class RabbitMQConsumer:
                     fixed_body_str = body_str.replace("'", '"')
                     data = json.loads(fixed_body_str)
 
-                # Pass the data to the data_callback for processing
-                data_callback(data)
+                # Process the data (call the get_data() method instead of data_callback)
+                self.get_data(data)
+                print("Data processed and stored.")
+
 
             except json.JSONDecodeError as e:
                 print(f"Error decoding JSON message in Consumer: {str(e)}")
@@ -127,12 +128,23 @@ class RabbitMQConsumer:
                 print(f"Error accessing key in JSON message in Consumer: {str(e)}")
 
 
-        # Set up the callback function to consume messages from the 'interpol_data' queue
-        channel.basic_consume(queue=self.queue_name, auto_ack=True, on_message_callback=callback)
+        while True:
+            try:
+                # Check the connection status and reconnect if necessary
+                self.check_connection()
 
-        # Start consuming messages from the RabbitMQ queue
-        print("Starting consuming")
-        channel.start_consuming()
+                # Set up the callback function to consume messages from the queue
+                self.channel.basic_consume(queue=self.queue_name,
+                                           auto_ack=True,
+                                           on_message_callback=callback)
+
+                print("Starting consuming")
+                self.channel.start_consuming()
+
+            except pika.exceptions.AMQPError as e:
+                print(f"Error consuming data from RabbitMQ: {e}")
+                print("Retrying in 5 seconds...")
+                time.sleep(5)
 
 
     def close_connection(self):
@@ -145,6 +157,7 @@ class RabbitMQConsumer:
             self.connection.close()
             self.connected = False
             print("RabbitMQ connection closed.")
+
 
     def __del__(self):
         """

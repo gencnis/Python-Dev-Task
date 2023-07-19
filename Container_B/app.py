@@ -1,31 +1,30 @@
 from RabbitMQConsumer import RabbitMQConsumer
-import time
 from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 import json
-import pika
 
 app = Flask(__name__)
 # Used PostgreSQL instead of SQLite
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:bxhrYukUTq/6SJGSKvZzH/gCFyn/d5iaHraBuLBvznI=@container_b/my_db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
 
-class Person(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    forename = db.Column(db.String(100))
-    date_of_birth = db.Column(db.String(100))
-    entity_id = db.Column(db.String(100))
-    nationalities = db.Column(db.String)
-    name = db.Column(db.String(100))
-    image = db.Column(db.String(1000))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:bxhrYukUTq/6SJGSKvZzH/gCFyn/d5iaHraBuLBvznI=@postgres:5432/my_db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+my_db = SQLAlchemy(app)
+
+class Person(my_db.Model):
+    id = my_db.Column(my_db.Integer, primary_key=True)
+    forename = my_db.Column(my_db.String(100))
+    date_of_birth = my_db.Column(my_db.String(100))
+    entity_id = my_db.Column(my_db.String(100))
+    nationalities = my_db.Column(my_db.String)
+    name = my_db.Column(my_db.String(100))
+    image = my_db.Column(my_db.String(1000))
 
     def __repr__(self):
         return f"Person(id={self.id}, forename={self.forename}, date_of_birth={self.date_of_birth}, " \
                f"entity_id={self.entity_id}, nationalities={self.nationalities}, name={self.name}, image={self.image})"
 
 
-def store_data_to_db(data):
+def store_data_to_my_db(data):
     """Process and store the data in the PostgreSQL database."""
     try:
         # Print the received message body to check the actual data
@@ -57,7 +56,7 @@ def store_data_to_db(data):
         if existing_person:
             # Delete the existing person record
             Person.query.filter_by(entity_id=entity_id).delete()
-            db.session.commit()
+            my_db.session.commit()
             print(f"Old data deleted for entity ID: {entity_id}")
 
         # Store the data in the database
@@ -71,10 +70,16 @@ def store_data_to_db(data):
             name=data.get('lastname'),
             image=image_href
         )
-        db.session.add(person)
-        db.session.commit()
-
+        my_db.session.add(person)
+        my_db.session.commit()
         print(f"Data stored for entity ID: {entity_id}")
+
+    except Exception as e:
+        my_db.session.rollback()  # Rollback the transaction if an error occurs
+        print(f"Error storing data to the database: {str(e)}")
+        # Print the data to investigate any potential issues
+        print("Data that failed to be stored:", data)
+
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON message in Database: {str(e)}")
         # If JSON decoding fails, print the received body to investigate the issue
@@ -85,8 +90,8 @@ def store_data_to_db(data):
 
 def clean_database():
     """Clean the whole database by deleting all records."""
-    db.session.query(Person).delete()
-    db.session.commit()
+    my_db.session.query(Person).delete()
+    my_db.session.commit()
     print("Database cleaned")
 
 @app.route('/')
@@ -127,14 +132,21 @@ def filter_data():
 def main():
     with app.app_context():
         # Create the database tables if they don't exist
-        db.create_all()
+        my_db.create_all()
         print("---- Database created. ----")
 
         # Create an instance of RabbitMQConsumer
         rabbitmq_consumer = RabbitMQConsumer(hostname="container_c", port=5672, queue_name="interpol_data")
 
-        # Consume data from RabbitMQ and store it in the PostgreSQL database using the data_callback function
-        rabbitmq_consumer.consume_data(store_data_to_db)
+        # Override the get_data() method to handle the data in the RabbitMQConsumer
+        def store_data(data):
+            store_data_to_my_db(data)
+
+        # Assign the get_data method in the RabbitMQConsumer instance to the store_data function
+        rabbitmq_consumer.get_data = store_data
+
+        # Consume data from RabbitMQ and process it using the overridden get_data() method
+        rabbitmq_consumer.consume_data()
         print("---- Data consumed and stored in the PostgreSQL database. ----")
 
         # Run the Flask application in debug mode
