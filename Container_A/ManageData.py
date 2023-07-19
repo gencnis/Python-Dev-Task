@@ -488,6 +488,7 @@ if __name__ == "__main__":
     rabbitmq_host = "container_c"  # Replace with the actual hostname or IP address of RabbitMQ
     rabbitmq_port = 5672  # The default port for RabbitMQ
     queue_name = "interpol_data"  # The name of the RabbitMQ queue
+    max_queue_length = 50000  # Set the maximum queue length to 100
 
-    data_extractor = InterpolDataExtractor(rabbitmq_host, rabbitmq_port, queue_name)
+    data_extractor = InterpolDataExtractor(rabbitmq_host, rabbitmq_port, queue_name, max_queue_length)
     data_extractor.start_extraction()
