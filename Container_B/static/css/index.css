@@ -52,6 +52,11 @@ body {
     float: left;
 }
 
+
+.table{
+    text-align: center;
+}
+
 /* Each field in the form */
 .field{
     height: 30px;

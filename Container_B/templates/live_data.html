@@ -1,0 +1,115 @@
+<!-- live_data.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/static/css/index.css">
+    <link rel="icon" href="https://i.imgur.com/GnKr3yJ.png" type="image/icon type">
+   
+    <title>Live Data</title>
+</head>
+
+<body>
+    <div style="overflow:auto">
+        <div class="fixed-bg">
+            <br/><br/>
+            <div class="searchdata">
+                <h1 style="border-bottom: solid; border-color: #0F3655; padding-bottom: 2px; color: #0D304C;">Interpol Red Notices Database</h1>
+                <p style="color: #0F3655; font-size: x-large;">Live Data</p><br/>
+
+                <p>Last Updated: <span id="last_updated"></span></p>
+                <p>Total People: <span id="total_people"></span></p>
+                <hr>
+
+                <div class="bg" id="searchArea">
+
+                    <p><input class="submit" id="reset" type="reset" value="Refresh" onClick="refreshPage()"/></p>
+
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Entity ID</th>
+                                <th>Name</th>
+                                <th>Forename</th>
+                                <th>Nationalities</th>
+                                <th>Date of Birth</th>
+                                <th>Image</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data_table">
+                            <!-- Data will be added here dynamically -->
+                        </tbody>
+                        <br/>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER STARTS HERE -->
+    <div class="footer">
+        <h2>INTERPOL PROJECT</h2>
+        <h3>Nisanur Genç | 2023 | Turk AI</h3>
+    </div>
+    <!-- FOOTER ENDS HERE -->
+
+
+    <script>
+        // JavaScript code to load the data when the page is loaded
+        window.addEventListener("load", function() {
+            loadData();
+            setInterval(loadData, 5000); // Refresh the data every 5 seconds
+        });
+
+        function loadData() {
+            // Make a GET request to the Flask backend to retrieve the data
+            fetch("/live_data")
+                .then(response => response.json())
+                .then(data => {
+                    // Process the received data and update the HTML content
+                    document.getElementById("last_updated").innerText = new Date().toLocaleString();
+                    document.getElementById("total_people").innerText = data.total_people;
+                    const data_table = document.getElementById("data_table");
+                    data_table.innerHTML = formatData(data); // Implement the formatData() function to format the data as you desire
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                });
+        }
+
+        // Function to format the data as desired for the table
+        function formatData(data) {
+            // Example: Displaying the data as a table with rows and columns
+            let formattedData = "";
+            data.data.forEach(person => {
+                const nationalities = person.nationalities.map(code => COUNTRY_NAMES[code]);
+                const nationalityString = nationalities.join(", "); // Join multiple nationalities with a comma
+                formattedData += `
+                    <tr>
+                        <td>
+                            <!-- Use the <img> tag to display the image from the provided link -->
+                            <img src="${person.image_link}" alt="${person.name}'s Image" style="max-width: 200px;">
+                        </td>
+                        <td>${person.entity_id}</td>
+                        <td>${person.name}</td>
+                        <td>${person.forename}</td>
+                        <td>${nationalityString}</td>
+                        <td>${person.date_of_birth}</td>
+
+                        {% if person.image_base64 %}
+                        <img src="data:image/jpeg;base64, {{ person.image_base64 }}" alt="Person Image">
+                    </tr>
+                `;
+            });
+            return formattedData;
+        }
+    </script>
+</body>
+
+
+</html>

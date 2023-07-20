@@ -50,7 +50,7 @@ class InterpolDataExtractor:
             entity_id = notice.get("entity_id")
             if entity_id not in self.cleaned_data:  # Check for duplicates using the set
                 name = notice.get("name") or "Unknown"
-                lastname = notice.get("forename") or "Unknown"
+                forename = notice.get("forename") or "Unknown"
                 date_of_birth = notice.get("date_of_birth") or "Unknown"
                 nationalities = notice.get("nationalities")
                 if nationalities is None:
@@ -59,7 +59,7 @@ class InterpolDataExtractor:
 
                 clean_item = {
                     "name": name,
-                    "lastname": lastname,
+                    "forename": forename,
                     "nationalities": nationalities,
                     "entity_id": entity_id,
                     "date_of_birth": date_of_birth,
@@ -369,66 +369,7 @@ class InterpolDataExtractor:
 
         more_than_160 = []
 
-        def make_request(self, url, params, more_than_160):
-            """
-            Make an HTTP request to the Interpol API with retries.
-
-            This method handles making an HTTP GET request to the Interpol API with the given parameters.
-            It also includes retry logic to handle potential network or API issues.
-
-            Parameters:
-            - url (str): The base URL for the Interpol API.
-            - params (dict): The parameters to include in the API request.
-            - more_than_160 (set): A set to store the failed requests.
-
-            Returns:
-            - list: A list of notice objects extracted from the API response.
-            """
-
-            max_retries = 3
-            for retry in range(max_retries):
-                try:
-                    # Make the HTTP request
-                    r = requests.get(url, params=params)
-                    r.raise_for_status()  # Check for HTTP errors
-                    response = r.json()  # Parse the response as JSON
-
-                    if "_embedded" in response and "notices" in response["_embedded"]:
-                        notices = response["_embedded"]["notices"]
-                        return notices
-                    else:
-                        # The response did not contain the expected data
-                        print("Unexpected response format or missing data.")
-                        return []
-
-                except requests.exceptions.RequestException as e:
-                    print(f"Error while fetching data: {e}")
-                    # Handle connection errors, timeouts, etc.
-                    if retry < max_retries - 1:
-                        print(f"Retrying ({retry+1}/{max_retries}) in a few seconds...")
-                        time.sleep(5)  # Wait for a few seconds and retry
-                    else:
-                        print(f"Failed to fetch data after {max_retries} retries.")
-                        more_than_160.add(params)  # Add the failed params tuple to more_than_160
-                        return []
-
-                except json.JSONDecodeError as e:
-                    print(f"Error while parsing JSON response: {e}")
-                    # Handle incomplete or unexpected data in the JSON response
-                    more_than_160.add(params)  # Add the failed params tuple to more_than_160
-                    return []
-
-                except requests.exceptions.HTTPError as e:
-                    print(f"HTTP error occurred: {e}")
-                    # Handle specific HTTP status codes here (e.g., 404, 500)
-                    more_than_160.add(params)  # Add the failed params tuple to more_than_160
-                    return []
-
-                except Exception as e:
-                    print(f"An error occurred: {e}")
-                    more_than_160.add(params)  # Add the failed params tuple to more_than_160
-                    return []
-
+        max_retries = 3
 
         for wanted_by, gender, age_interval, nation in more_than_160_nat:
             age_min, age_max = age_interval
@@ -442,15 +383,100 @@ class InterpolDataExtractor:
                     "forename": letter,
                 }
 
-                notices = self.make_request(url, params, more_than_160)
-                # Pass the retrieved notices to clean_and_publish_data for processing
-                self.clean_and_publish_data(notices)
+                for retry in range(max_retries):
+                    try:
+                        # Make the HTTP request
+                        r = requests.get(url, params=params)
+                        r.raise_for_status()  # Check for HTTP errors
+                        response = r.json()  # Parse the response as JSON
+
+                        if "_embedded" in response and "notices" in response["_embedded"]:
+                            notices = response["_embedded"]["notices"]
+                            self.clean_and_publish_data(notices)
+                            break  # Break the retry loop if successful
+
+                        else:
+                            # The response did not contain the expected data
+                            print("Unexpected response format or missing data.")
+                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                            break  # Break the retry loop as well
+
+                    except requests.exceptions.RequestException as e:
+                        print(f"Error while fetching data: {e}")
+                        # Handle connection errors, timeouts, etc.
+                        if retry < max_retries - 1:
+                            print(f"Retrying ({retry+1}/{max_retries}) in a few seconds...")
+                            time.sleep(5)  # Wait for a few seconds and retry
+                        else:
+                            print(f"Failed to fetch data after {max_retries} retries.")
+                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                            break  # Break the retry loop as well
+
+                    except json.JSONDecodeError as e:
+                        print(f"Error while parsing JSON response: {e}")
+                        # Handle incomplete or unexpected data in the JSON response
+                        more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                        break  # Break the retry loop as well
+
+                    except requests.exceptions.HTTPError as e:
+                        print(f"HTTP error occurred: {e}")
+                        # Handle specific HTTP status codes here (e.g., 404, 500)
+                        more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                        break  # Break the retry loop as well
+
+                    except Exception as e:
+                        print(f"An error occurred: {e}")
+                        more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                        break  # Break the retry loop as well
 
                 for fletter in string.ascii_uppercase:
                     params["name"] = fletter
-                    self.make_request(url, params, more_than_160)
-                    # Pass the retrieved notices to clean_and_publish_data for processing
-                    self.clean_and_publish_data(notices)
+
+                    for retry in range(max_retries):
+                        try:
+                            # Make the HTTP request
+                            r = requests.get(url, params=params)
+                            r.raise_for_status()  # Check for HTTP errors
+                            response = r.json()  # Parse the response as JSON
+
+                            if "_embedded" in response and "notices" in response["_embedded"]:
+                                notices = response["_embedded"]["notices"]
+                                self.clean_and_publish_data(notices)
+                                break  # Break the retry loop if successful
+
+                            else:
+                                # The response did not contain the expected data
+                                print("Unexpected response format or missing data.")
+                                more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                                break  # Break the retry loop as well
+
+                        except requests.exceptions.RequestException as e:
+                            print(f"Error while fetching data: {e}")
+                            # Handle connection errors, timeouts, etc.
+                            if retry < max_retries - 1:
+                                print(f"Retrying ({retry+1}/{max_retries}) in a few seconds...")
+                                time.sleep(5)  # Wait for a few seconds and retry
+                            else:
+                                print(f"Failed to fetch data after {max_retries} retries.")
+                                more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                                break  # Break the retry loop as well
+
+                        except json.JSONDecodeError as e:
+                            print(f"Error while parsing JSON response: {e}")
+                            # Handle incomplete or unexpected data in the JSON response
+                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                            break  # Break the retry loop as well
+
+                        except requests.exceptions.HTTPError as e:
+                            print(f"HTTP error occurred: {e}")
+                            # Handle specific HTTP status codes here (e.g., 404, 500)
+                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                            break  # Break the retry loop as well
+
+                        except Exception as e:
+                            print(f"An error occurred: {e}")
+                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
+                            break  # Break the retry loop as well
 
         print("Failed to fetch data for the following tuples:")
         for params in more_than_160:
@@ -459,12 +485,15 @@ class InterpolDataExtractor:
         return more_than_160
 
 
+
     def start_extraction(self):
         """
         Start the data extraction process.
 
         This method calls different extraction methods to fetch data based on certain criteria.
         """
+        start_time = time.time()  # Record the start time
+        
         interpol_countries_extractor = InterpolCountriesExtractor("https://www.interpol.int/How-we-work/Notices/View-Red-Notices")
         nationalities = interpol_countries_extractor.get_extracted_nationalities()
 
@@ -483,6 +512,11 @@ class InterpolDataExtractor:
             print("Error in main:", e)
         
         print("Total data cleaned and published:", self.total_cleaned_data)
+
+
+        elapsed_minutes = (time.time() - start_time) / 60  # Calculate elapsed minutes
+        print("Total data cleaned and published:", self.total_cleaned_data)
+        print(f"Time elapsed: {elapsed_minutes:.2f} minutes")
 
 if __name__ == "__main__":
     rabbitmq_host = "container_c"  # Replace with the actual hostname or IP address of RabbitMQ

@@ -3,7 +3,7 @@ import pika
 import time
 
 class RabbitMQConsumer:
-    def __init__(self, hostname, port, queue_name):
+    def __init__(self, hostname, port, queue_name, db_registrar):
         """
         Constructor for the RabbitMQConsumer class.
 
@@ -18,6 +18,7 @@ class RabbitMQConsumer:
         self.connection = None
         self.channel = None
         self.connected = False
+        self.db_registrar = db_registrar  # Store the db_registrar instance
 
         # Sleep for a few seconds to allow other components to initialize before connecting to RabbitMQ
         print("Sleeping for 25 seconds to allow other components to initialize...")
@@ -62,12 +63,7 @@ class RabbitMQConsumer:
         else:
             # Connection successful, start consuming data
             self.consume_data()
-
-
-    # The get_data() method to process the data
-    def get_data(self, data):
-        # This method will be overridden by the parent class (app.py) to handle the data.
-        pass
+        
 
     def is_connected(self):
         """
@@ -115,9 +111,8 @@ class RabbitMQConsumer:
                     fixed_body_str = body_str.replace("'", '"')
                     data = json.loads(fixed_body_str)
 
-                # Process the data (call the get_data() method instead of data_callback)
+                # Process the data
                 self.get_data(data)
-                print("Data processed and stored.")
 
 
             except json.JSONDecodeError as e:
@@ -145,6 +140,21 @@ class RabbitMQConsumer:
                 print(f"Error consuming data from RabbitMQ: {e}")
                 print("Retrying in 5 seconds...")
                 time.sleep(5)
+
+
+
+    def get_data(self, data):
+        """Process the data (called by the callback function) and store it in the database."""
+        try:
+            # Call the callback function to handle the data
+            self.db_registrar.store_data_to_my_db(data)
+
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON message in Consumer: {str(e)}")
+            # If JSON decoding fails, print the received body to investigate the issue
+            print("Received Message Body (Failed to Decode) in Consumer:", data.decode())
+        except KeyError as e:
+            print(f"Error accessing key in JSON message in Consumer: {str(e)}")
 
 
     def close_connection(self):

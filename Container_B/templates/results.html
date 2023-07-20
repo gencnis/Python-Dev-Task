@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="css/index.css">
+    <link rel="stylesheet" href="/static/css/index.css">
     <link rel="icon" href="https://i.imgur.com/GnKr3yJ.png" type="image/icon type">
 
     <title>Filtered Results</title>
@@ -21,24 +21,31 @@
                 <p style="color: #0F3655; font-size: x-large;">Filtered Results</p><br/>
 
                 <div class="bg">
-                    <table>
+                    <table class="table">
                         <thead>
                             <tr>
+                                <th>Image</th>
+                                <th>Entity ID</th>
                                 <th>Name</th>
-                                <th>Last Name</th>
+                                <th>Forename</th>
                                 <th>Nationalities</th>
-                                <th>Date of Birth</th>
-                                <th>Image Link</th>
+                                <th>Date of Birth (yy/mm/dd)</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for person in results %}
                             <tr>
+                                <td>
+                                    {% if person.image_base64 %}
+                                    <img src="data:image/jpeg;base64,{{ person.image_base64 }}" alt="{{ person.name }}'s Image" style="max-width: 200px;">
+                                </td>
+                                <td>{{ person.entity_id }}</td>
                                 <td>{{ person.name }}</td>
-                                <td>{{ person.lastname }}</td>
-                                <td>{{ person.nationalities }}</td>
+                                <td>{{ person.forename }}</td>
+                                <td>
+                                    <!-- Join nationalities with commas and remove quotes and square brackets -->
+                                    {{ person.nationalities | join(', ') | replace('"', '') | replace('[', '') | replace(']', '') }}</td>
                                 <td>{{ person.date_of_birth }}</td>
-                                <td>{{ person.image_link }}</td>
                             </tr>
                             {% endfor %}
                             <br/><br/>
@@ -47,6 +54,7 @@
                     </table>
                 </div>
             </div>
+            <br/><br/><br/><br/>
         </div>
     </div>
 

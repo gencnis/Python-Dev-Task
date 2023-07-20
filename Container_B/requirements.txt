@@ -4,3 +4,4 @@ pika==1.2.0
 flask_sqlalchemy
 psycopg2
 Flask-SQLAlchemy
+requests
