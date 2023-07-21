@@ -1,1 +1,10 @@
 postgres pw bxhrYukUTq/6SJGSKvZzH/gCFyn/d5iaHraBuLBvznI=
+
+
+docker-compose exec container_b flask db migrate -m "Increase image column size"
+docker-compose exec container_b flask db upgrade
+
+
+docker-compose exec container_b flask db init
+docker-compose exec container_b flask db migrate -m "Add image_url column to Person table"
+docker-compose exec container_b flask db upgrade

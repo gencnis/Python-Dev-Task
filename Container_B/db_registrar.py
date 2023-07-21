@@ -1,5 +1,4 @@
 # db_registrar.py
-import base64
 import json
 import requests
 
@@ -8,7 +7,34 @@ class DBRegistrar:
         self.person_model = person_model
         self.db = db
 
-        
+
+    def _get_image_url(self, image_data):
+        try:
+            response = requests.get(image_data['_links']['self']['href'])
+            response.raise_for_status()
+            image_json = response.json()
+
+            # Check if the '_embedded' key is present in the image JSON
+            if '_embedded' in image_json and 'images' in image_json['_embedded']:
+                images = image_json['_embedded']['images']
+                if images:
+                    first_image = images[0]  # Take the first image from the list
+                    if 'picture_id' in first_image and '_links' in first_image:
+                        picture_id = first_image['picture_id']
+                        links = first_image['_links']
+                        if 'self' in links and 'href' in links['self']:
+                            return links['self']['href']
+            
+            print("Error: Image data is missing or in an unexpected format.")
+            return None
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error requesting image URL: {str(e)}")
+            return None
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Error parsing image JSON data: {str(e)}")
+            return None
+
     def store_data_to_my_db(self, data):
         """Process and store the data in the PostgreSQL database."""
         try:
@@ -44,35 +70,31 @@ class DBRegistrar:
                 self.db.session.commit()
                 print(f"Old data deleted for entity ID: {entity_id}")
 
+            print("data.get('image', {}).get('href'): ", data.get('image', {}).get('href'))
             # Store the data in the database
             image_href = data.get('image', {}).get('href')
-            image_data = None
+            print("image_href: ", image_href)
 
+            # Store the image URL directly as a string
+            image_data = image_href if image_href else "Unknown"
 
-            if image_href:
-                # Fetch the image from the URL
-                image_response = requests.get(image_href)
-                print("Image requested.")
-                if image_response.ok:
-                    # Get the binary image content
-                    image_content = image_response.content
-
-                    # Encode the image bytes as base64 before storing as bytea
-                    image_data = base64.b64encode(image_content)
-
-                else:
-                    image_data = b"Unknown"
-
+            # Fetch and store the image URL in the database
+            image_url = self._get_image_url(data['image'])
+            if image_url:
+                person_image_url = f"https://ws-public.interpol.int/notices/v1/red/{entity_id}/images/{image_url.split('/')[-1]}"
+            else:
+                person_image_url = None
 
             nationalities_json = json.dumps(data.get('nationalities', []))
 
             person = self.person_model(
                 forename=data.get('name'),
                 date_of_birth=data.get('date_of_birth'),
-                entity_id=data['entity_id'],
+                entity_id=entity_id,
                 nationalities=nationalities_json,
                 name=data.get('forename'),
-                image=image_data
+                image=image_data,
+                image_url=person_image_url  # Store the fetched image URL in the database
             )
 
             self.db.session.add(person)
@@ -92,4 +114,4 @@ class DBRegistrar:
         except KeyError as e:
             print(f"Error accessing key in JSON message in Database: {str(e)}")
 
-
+    
