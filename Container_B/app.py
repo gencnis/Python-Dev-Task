@@ -14,7 +14,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:bxhrYukUTq/6SJGSK
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 my_db = SQLAlchemy(app)
 COUNTRY_NAMES = read_country_data("countries.txt")
-migrate = Migrate(app, my_db)
 
 
 class Person(my_db.Model):
@@ -23,13 +22,12 @@ class Person(my_db.Model):
     entity_id = my_db.Column(my_db.String(100), primary_key=True)
     nationalities = my_db.Column(my_db.String(1000))
     name = my_db.Column(my_db.String(100))
-    image = my_db.Column(my_db.String(100000))
-    image_url = my_db.Column(my_db.String(500000))  # Add the 'image_url' column
+    image = my_db.Column(my_db.String(1000))
 
     def __repr__(self):
             return f"Person(forename={self.forename}, date_of_birth={self.date_of_birth}, " \
                 f"entity_id={self.entity_id}, nationalities={self.nationalities}, " \
-                f"name={self.name}, image={self.image}, image_url={self.image_url})"
+                f"name={self.name}, image={self.image}"
 
 
 

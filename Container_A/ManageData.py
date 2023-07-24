@@ -23,6 +23,34 @@ import time
 import requests
 import json
 
+class ExtractImages:
+    def fetch_image_url(self, image_data, entity_id):
+        try:
+            response = requests.get(image_data['href'])
+            response.raise_for_status()
+            image_json = response.json()
+
+            # Check if the '_embedded' key is present in the image JSON
+            if '_embedded' in image_json and 'images' in image_json['_embedded']:
+                images = image_json['_embedded']['images']
+                if images:
+                    first_image = images[0]  # Take the first image from the list
+                    if '_links' in first_image and 'self' in first_image['_links']:
+                        image_url = first_image['_links']['self']['href']
+                        print("image_url: ", image_url)
+                        return image_url
+
+            print("Error: Image data is missing or in an unexpected format.")
+            return "No Image Available"
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error requesting image URL: {str(e)}")
+            return "No Image Available"
+        except json.JSONDecodeError as e:
+            print(f"Error while parsing JSON response for image: {str(e)}")
+            return "No Image Available"
+
+
 class InterpolDataExtractor:
     def __init__(self, hostname, port, queue_name):
         """
@@ -45,6 +73,7 @@ class InterpolDataExtractor:
         - notices (list): A list of Interpol notices obtained from the API response.
         """
         clean_data = []
+        image_extractor = ExtractImages()  # Create an instance of the ExtractImages class
 
         for notice in notices:
             entity_id = notice.get("entity_id")
@@ -55,7 +84,11 @@ class InterpolDataExtractor:
                 nationalities = notice.get("nationalities")
                 if nationalities is None:
                     nationalities = ["Unknown"]
-                image = notice.get("_links", {}).get("images", {}) or "Unknown"
+                image_data = notice.get("_links", {}).get("images", {}) or "Unknown"
+
+                print("image_data: ", image_data)
+                # Fetch the image URL using the ExtractImages class
+                image_url = image_extractor.fetch_image_url(image_data, entity_id)
 
                 clean_item = {
                     "name": name,
@@ -63,7 +96,7 @@ class InterpolDataExtractor:
                     "nationalities": nationalities,
                     "entity_id": entity_id,
                     "date_of_birth": date_of_birth,
-                    "image": image,
+                    "image": image_url,  # Use the fetched image URL here
                 }
 
                 clean_data.append(clean_item)
