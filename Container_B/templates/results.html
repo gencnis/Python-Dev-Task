@@ -36,8 +36,11 @@
                             {% for person in results %}
                             <tr>
                                 <td>
-                                    {% if person.image_base64 %}
-                                    <img src="data:image/jpeg;base64,{{ person.image_base64 }}" alt="{{ person.name }}'s Image" style="max-width: 200px;">
+                                    {% if person.image %}
+                                        <img src="{{ person.image }}" alt="Image for {{ person.name }}">
+                                    {% else %}
+                                        No Image Available
+                                    {% endif %}
                                 </td>
                                 <td>{{ person.entity_id }}</td>
                                 <td>{{ person.name }}</td>

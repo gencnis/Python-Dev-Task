@@ -78,8 +78,14 @@ body {
     margin-left: 10px;
 }
 
+/* Submit button when disabled */
+.submit:disabled {
+    cursor: not-allowed; /* Prevent the pointer cursor when the button is disabled */
+    background-color: #ccc;
+    color: #fff;
+}
 
-.submit:hover {
+.submit:not(:disabled):hover {
     background-color: #5cc0eb;
     color: black;
 }
