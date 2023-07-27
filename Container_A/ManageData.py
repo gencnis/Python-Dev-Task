@@ -22,6 +22,7 @@ import string
 import time
 import requests
 import json
+import csv
 
 
 class ExtractImages:
@@ -431,6 +432,54 @@ class InterpolDataExtractor:
     #     return more_than_160
 
 
+    def write_to_csv(self, base_url):
+        """
+        Write the total parameter for each age interval to a CSV file.
+
+        The CSV file will have two columns: 'Age Interval' and 'Total Parameter'.
+
+        The data for each age interval will be written as a separate row in the CSV file.
+        """
+        age_intervals = [
+            (18, 25),
+            (25, 25),
+            (26, 26),
+            (27, 27),
+            (28, 28),
+            (29, 29),
+            (30, 30),
+            (31, 31),
+            (32, 32),
+            (33, 33),
+            (34, 34),
+            (35, 35),
+            (36, 39),
+            (39, 45),
+            (45, 50),
+            (50, 70),
+            (70, 90),
+            (90, 120)
+        ]
+
+        with open('age_intervals_totals.csv', 'w', newline='') as csvfile:
+            fieldnames = ['Age Interval', 'Total Parameter']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            writer.writeheader()
+
+            for ageMin, ageMax in age_intervals:
+                url_with_params = base_url + "&ageMin=" + str(ageMin) + "&ageMax=" + str(ageMax)
+                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+
+                # Check if the response data is as expected
+                if "_embedded" in data and "notices" in data["_embedded"]:
+                    total_parameter = data["total"]
+                else:
+                    total_parameter = "N/A"
+
+                writer.writerow({'Age Interval': f"{ageMin}-{ageMax}", 'Total Parameter': total_parameter})
+
+
 
     def start_extraction(self):
         """
@@ -555,6 +604,8 @@ class InterpolDataExtractor:
             base_url = "https://ws-public.interpol.int/notices/v1/red?="
 
             # kalanlar = self.ducktape_extract(tuples_list, base_url)
+
+            self.write_to_csv(base_url)
 
             more_than_160_age = self.extract_by_age(base_url)
             more_than_160_gender = self.extract_by_gender(more_than_160_age, base_url)
