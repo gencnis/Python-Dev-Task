@@ -1,0 +1,119 @@
+/* Global styles */
+* {
+    box-sizing: border-box;
+    font-family: "Montserrat", sans-serif;
+}
+
+html, body {
+    background-color: transparent;
+}
+
+body {
+    background-image: url("https://i.imgur.com/2gSSw2V.jpg");
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center center;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* New styles for centering the container and moving it down */
+.container {
+    flex: 1;
+    padding: 20px;
+    padding-bottom: 80px; /* Add padding to accommodate the footer */
+    /* The total padding-bottom value should be the height of the footer */
+    margin: 100px auto 60px; /* Adjust the margin to accommodate the footer (60px height) */
+    /* Additional styles */
+    position: relative;
+    z-index: 1;
+    overflow: hidden; /* Hide any overflowing content */
+    max-width: 1900px; /* Adjust the maximum width as needed */
+}
+
+/* Table styles */
+.searchdata {
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1500px; /* Adjust the maximum width as needed */
+    background-color: #F5F9FC;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    color: #3A4D63;
+    overflow: auto; /* Add scroll if content overflows */
+    max-height: calc(100vh - 190px); /* Adjust the max-height based on your needs */
+}
+
+h1 {
+    color: #2B3945;
+}
+
+p {
+    color: #3A4D63;
+    font-size: 1.2rem;
+}
+
+.table {
+    width: 100%;
+    max-width: 1500px; /* Adjust the maximum width as needed */
+    border-collapse: collapse;
+    background-color: white;
+}
+
+.table thead th {
+    padding: 12px 20px;
+    background-color: #257ABB;
+    color: white;
+    font-size: 1.2rem;
+    text-align: left;
+}
+
+.table tbody tr {
+    border-bottom: 1px solid #ccc;
+}
+
+.table tbody td {
+    padding: 12px 20px;
+    font-size: 1rem;
+    word-break: break-word;
+}
+
+/* Footer styles */
+.footer {
+    width: 100%;
+    height: 60px;
+    padding: 10px;
+    color: white;
+    background-color: #2B3945;
+    font-size: 0.8rem;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+}
+
+/* Additional styles for background image */
+body::before {
+    content: "";
+    background: rgba(0, 0, 0, 0.4); /* Use rgba for a semi-transparent overlay */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+}
+
+/* Adjust the min-height of the body to make the container longer */
+@media (min-height: 1600px) {
+    body {
+        min-height: 120vh;
+    }
+}

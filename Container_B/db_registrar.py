@@ -1,11 +1,44 @@
 # db_registrar.py
 import json
+import os
 from flask_sqlalchemy import SQLAlchemy
+import requests
 
 class DBRegistrar:
     def __init__(self, person_model, db):
         self.person_model = person_model
         self.db = db
+
+
+
+    def download_image(self, url, filename):
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+
+            # Check if the image_data directory exists, if not, create it
+            image_dir = './image_data'
+            print(f"Image Directory: {image_dir}")
+
+            if not os.path.exists(image_dir):
+                os.makedirs(image_dir, exist_ok=True)
+
+            image_path = os.path.join(image_dir, filename)
+            print(f"Image Path: {image_path}")
+
+            with open(image_path, 'wb') as f:
+                f.write(response.content)
+
+            print(f"Image downloaded and saved to: {image_path}")
+        
+        except requests.exceptions.HTTPError as e:
+            print(f"HTTP error occurred while downloading the image: {str(e)}")
+        except requests.exceptions.RequestException as e:
+            print(f"Error occurred while downloading the image: {str(e)}")
+        except Exception as e:
+            print(f"Error downloading image: {str(e)}")
+
+
 
     def store_data_to_my_db(self, data):
         """Process and store the data in the PostgreSQL database."""
@@ -44,6 +77,11 @@ class DBRegistrar:
 
             # Store the data in the database
             image_data = data.get('image', "Unknown")
+            
+            image_url = data.get('image')
+            if image_url:
+                image_filename = f"{data['entity_id']}.jpg"  # You can adjust the filename as needed
+                self.download_image(image_url, image_filename)
 
             nationalities_json = json.dumps(data.get('nationalities', []))
 

@@ -2,10 +2,10 @@ import json
 from RabbitMQConsumer import RabbitMQConsumer
 from db_registrar import DBRegistrar
 from readFile import read_country_data
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, send_from_directory, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import threading
-from flask_migrate import Migrate
+
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 # Used PostgreSQL instead of SQLite
@@ -38,18 +38,30 @@ def clean_database():
     print("Database cleaned")
 
 
+@app.route('/images/<path:filename>')
+def serve_image(filename):
+    return send_from_directory('./image_data', filename)
+
+
 @app.route('/live_data', methods=['POST'])
 def live_data():
     total_people = Person.query.count()
     people = Person.query.all()
 
-    # Format the nationalities field from JSON string to list of country names
+    # Format the nationalities field from JSON string to a list of country names
     for person in people:
         nationalities_list = json.loads(person.nationalities)
         person.nationalities = [COUNTRY_NAMES.get(country_code, country_code) for country_code in nationalities_list]
 
-    return render_template('live_data.html', total_people=total_people, data=people)
+    # Convert the SQLAlchemy objects to dictionaries for JSON serialization
+    data = [person.__dict__ for person in people]
+    
+    # Remove any unnecessary keys (e.g., '_sa_instance_state') from the dictionary
+    for person_data in data:
+        person_data.pop('_sa_instance_state', None)
 
+    # Return the live data in JSON format
+    return jsonify(total_people=total_people, data=data)
 
 
 @app.route('/')

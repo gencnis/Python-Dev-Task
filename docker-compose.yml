@@ -23,12 +23,12 @@ services:
     container_name: container_b 
     volumes:
       - ./Container_B:/app
+      - ./Container_B:/image_data
     networks:
       - Interpol
     depends_on:
       - container_c
       - postgres
-
 
   postgres:
     image: postgres
@@ -65,3 +65,4 @@ services:
 networks:
   Interpol:
     driver: bridge
+  

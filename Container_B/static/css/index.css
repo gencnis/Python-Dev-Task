@@ -1,120 +1,227 @@
-* {
-    box-sizing: border-box;
-    font-family: Gill Sans, Gill Sans MT, Calibri, sans-serif;
-}
+body{
+    background: #eee;
+    letter-spacing: 2px;
+    min-height: 101vh;
+  }
 
-body {
-    background-color: #E8F7FC;
-}
+  /* Disable scrolling until the showButton is clicked */
+  body.disable-scrolling {
+    overflow: hidden;
+  }
 
-.fixed-bg {
-    background-image: url("https://i.imgur.com/2gSSw2V.jpg");
-    min-height: 900px;
-    background-attachment: fixed;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: cover;
-    width: 100%;
-    border-top: 5px solid #26478E;
-}
-
-/* container */
-.searchdata {
-    margin-left: 10%; 
-    margin-right: 10%;
-    border-radius: 5px;
+  /* Add horizontal scrolling to the table if it exceeds the screen width */
+  .table-responsive {
+    overflow-x: auto;
+  }
+  
+  a:hover, a:active{
+    text-decoration: none;
+  }
+  
+  .col-xs-1{
+    padding:0;
+  }
+  
+  h1{
+    font-family: 'Arvo', sans-serif;
+    color:#E35865;
     margin-top: 10px;
-    margin-bottom: 5px;
-    background-color: #BEE1F0;
-    padding: 3%;
-    border-style: double;
-    border-width: 10px;
-    border-color: #172C58;
-    box-shadow: 10px 10px 25px #257ABB;
-    color: #172C58;
-}
-
-.bg {
-    border: 5px solid #0D304C;
+  }
+  
+  header.container-fluid{
+    margin: 0;
+    background-color: #39404A;
+    box-shadow: 0 0px 3px 3px rgba(0,0,0,.4);
+    height: 100vh;
+    min-height: 150px;
+  }
+  
+  .container{
+    max-width: 1700px;
+    margin: auto;
+    padding: 0 50px;
+  }
+  
+  ul{
+    padding: 0;
+  }
+  
+  li{
+    letter-spacing: 0;
     padding: 30px;
-    padding-left: 50px;
-    background-color: #E8F7FC;
-}
+    list-style: none;
+    min-height: 200px;
+    background: #fff;
+    margin: 50px auto;
+    text-align: left;
+    -webkit-transition: box-shadow .2s ease-out .2s;
+    -moz-transition: box-shadow .2s ease-out .2s;
+    -o-transition: box-shadow .2s ease-out .2s;
+    transition: box-shadow .2s ease-out .2s;
+    word-spacing: 2px;
+  }
+  
+  li > h3{
+    margin-top:0;
+    color: #E35865;
+    line-height: 2;
+  }
+  
+  li > p{
+    color: #666;
+    line-height: 2;
+  }
+  
+ 
 
-.bg:after {
-    content: "";
+  label{
+    padding:0;
+    border-radius: 0;
+    border: none;
+    font-size: 20px;
+    color: #bbb;
+    background:none;
+    letter-spacing: 1px;
+    word-spacing: 10px;
+    font-family: 'Arvo', sans-serif;
+    padding: 0;
+    line-height: 25px;
+  }
+  
+  #searchBox{
+    padding-top: 40vh;
+  }
+  
+  button{
+    background: none;
+    border: none;
+  }
+  
+  button.disabled {
+    opacity: 0.6; /* Adjust the opacity to your preference */
+    cursor: not-allowed; /* Change the cursor to show it's not clickable */
+    /* Add any other styling you want for the disabled state */
+  }
+  
+  .form{
+    padding: 10px 0;
+    padding-right: 15px;
+    border: 3px solid #E35865;
+    
+  }
+  
+  .form.col-xs-12{
+    padding-left: 0;
+  }
+  
+  .form-control{
+    background-color: transparent;
+    border: 3px solid #E35865;
+    color: #bbb;
+  
+  }
+  
+  .glyphicon{
+    color: #E35865;
+    font-size: 20px;
+    line-height: 25px;
+  }
+  
+  .glyphicon-search{
+    cursor: pointer;
+  
+  }
+  
+
+  .bar{
+    vertical-align: super;
+    font-weight: 700;
+    font-size: 22px;
+    font-family: 'Montserrat', sans-serif;
+  }
+  
+  
+  li:hover{
+    box-shadow: 0 0 15px 15px rgba(0,0,0,.1);
+  }
+  
+  ::-webkit-input-placeholder {
+    color: #bbb;
+    opacity: 1;
+  }
+  
+  :-moz-placeholder { /* Firefox 18- */
+    color: #bbb;
+    opacity: 1;
+  }
+  
+  ::-moz-placeholder {  /* Firefox 19+ */
+    color: #bbb;
+    opacity: 1;
+  }
+  
+  :-ms-input-placeholder {  
+    color: #bbb;
+    opacity: 1;
+  }
+  
+  #mainBody{
+    font-family: 'Montserrat', sans-serif;
+    width: fit-content;
+  }
+
+
+  /* Set the default width of the table headers and cells */
+    th, td {
+    min-width: 150px; /* You can adjust this value as per your preference */
+  }
+  
+  /* Horizontal centering */
+  td {
+    text-align: center;
+  }
+  
+  /* Vertical centering */
+  tr {
     display: table;
-    clear: both;
-}
-
-.column{
-    width: 50%;
-    float: left;
-}
-
-
-.table{
-    text-align: center;
-}
-
-/* Each field in the form */
-.field{
-    height: 30px;
-    width: 300px;
-    box-shadow: 2px 2px 10px #257ABB;
-    margin-top: 5px;
-}
-
-/* Submit button */
-.submit {
-    height: 40px; 
-    width: 150px; 
-    font-weight: bold; 
-    font-size: large;
-    background-color: #172C58;
-    color: white;
-    border-radius: 5px;
-    box-shadow: 2px 2px 10px #257ABB;
-    margin-left: 10px;
-}
-
-/* Submit button when disabled */
-.submit:disabled {
-    cursor: not-allowed; /* Prevent the pointer cursor when the button is disabled */
-    background-color: #ccc;
-    color: #fff;
-}
-
-.submit:not(:disabled):hover {
-    background-color: #5cc0eb;
-    color: black;
-}
-
-
-a {
-    font-weight: bold; 
-    font-size: large;
-    background-color:#7CC3E1;
-    color: black;
-    border-radius: 20px;
-    box-shadow: 2px 2px 10px #257ABB;
-    padding: 20px;
-    text-decoration: none;
-}
-
-a:hover {
-    background-color: #1E6499;;
-    color: white;
-}
-
-.footer {
-    text-align: center;
-    float: left;
     width: 100%;
-    height: 100px;
-    padding: 10px;
-    color: white;
-    background-color: #172C58;
-    font-size: small;
-    text-decoration: none;
-}
+    table-layout: fixed;
+  }
+  
+  td {
+    display: table-cell;
+    vertical-align: middle;
+  }
+  
+  /* Add horizontal scrolling to the table if it exceeds the screen width */
+  .table-responsive {
+    overflow-x: auto;
+  }
+  
+  /* Rest of your CSS styles... */
+  
+  
+  /*********media query starts ***********/
+  
+  @media screen and (max-width: 420px){
+    #searchBar,.glyphicon{
+      font-size: 16px;
+    } 
+    
+    h1{
+      font-size: 28px;
+    } 
+  }
+
+   /* Responsive styles for smaller screens */
+   @media screen and (max-width: 768px) {
+    th, td {
+      width: 120px; /* Adjust the width for smaller screens */
+    }
+  }
+
+  @media screen and (max-width: 1600px) {
+    th, td {
+      width: 100px; /* Further adjust the width for even smaller screens */
+    }
+  }

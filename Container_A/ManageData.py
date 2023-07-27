@@ -23,33 +23,48 @@ import time
 import requests
 import json
 
+
 class ExtractImages:
-    def fetch_image_url(self, image_data, entity_id):
-        try:
-            response = requests.get(image_data['href'])
-            response.raise_for_status()
-            image_json = response.json()
+    def fetch_image_url(self, image_data, entity_id, max_retries=9, retry_delay=200):
+        retries = 0
 
-            # Check if the '_embedded' key is present in the image JSON
-            if '_embedded' in image_json and 'images' in image_json['_embedded']:
-                images = image_json['_embedded']['images']
-                if images:
-                    first_image = images[0]  # Take the first image from the list
-                    if '_links' in first_image and 'self' in first_image['_links']:
-                        image_url = first_image['_links']['self']['href']
-                        print("image_url: ", image_url)
-                        return image_url
+        while retries < max_retries:
+            try:
+                response = requests.get(image_data['href'])
+                if response.status_code == 200:
+                    image_json = response.json()
 
-            print("Error: Image data is missing or in an unexpected format.")
-            return "No Image Available"
+                    # Check if the '_embedded' key is present in the image JSON
+                    if '_embedded' in image_json and 'images' in image_json['_embedded']:
+                        images = image_json['_embedded']['images']
+                        if images:
+                            first_image = images[0]  # Take the first image from the list
+                            if '_links' in first_image and 'self' in first_image['_links']:
+                                image_url = first_image['_links']['self']['href']
+                                print("image_url: ", image_url)
+                                return image_url
 
-        except requests.exceptions.RequestException as e:
-            print(f"Error requesting image URL: {str(e)}")
-            return "No Image Available"
-        except json.JSONDecodeError as e:
-            print(f"Error while parsing JSON response for image: {str(e)}")
-            return "No Image Available"
+                    print("Error: Image data is missing or in an unexpected format.")
+                    return "No Image Available"
+                elif response.status_code == 403:
+                    # Retry after a delay
+                    retries += 1
+                    print(f"Received Forbidden (403) status code. Retrying ({retries}/{max_retries})...")
+                    time.sleep(retry_delay)
+                else:
+                    # Other non-200 status codes are considered as errors
+                    print(f"Error: Unexpected status code - {response.status_code}")
+                    return "No Image Available"
 
+            except requests.exceptions.RequestException as e:
+                print(f"Error requesting image URL: {str(e)}")
+                return "No Image Available"
+            except json.JSONDecodeError as e:
+                print(f"Error while parsing JSON response for image: {str(e)}")
+                return "No Image Available"
+
+        print(f"Max retries reached. Unable to fetch image URL.")
+        return "No Image Available"
 
 class InterpolDataExtractor:
     def __init__(self, hostname, port, queue_name):
@@ -109,152 +124,57 @@ class InterpolDataExtractor:
         # Publish the cleaned data
         for data_item in clean_data:
             self.rabbitmq_publisher.publish_data(data_item)
-    
 
-    def extract_by_wanted(self, nationalities, url):
-        """
-        Extract Interpol data by nationality (wantedBy).
+    @staticmethod
+    def fetch_data_with_retry(url, max_retries=15, retry_delay=300):
+        retries = 0
 
-        Parameters:
-        - nationalities (list): A list of nationalities extracted from the Interpol website.
-        - url (str): The base URL for the Interpol API.
-
-        Returns:
-        - more_than_160 (list): A list of nationalities with more than 160 entries.
-        """
-
-        more_than_160 = []
-
-        for wanted_by in nationalities:
+        while retries < max_retries:
             try:
                 # Make the HTTP request
-                r = requests.get(url + "&arrestWarrantCountryId=" + wanted_by)
+                r = requests.get(url)
                 r.raise_for_status()  # Check for HTTP errors
 
                 # Check for rate limit exceeded
                 if "X-RateLimit-Remaining" in r.headers and int(r.headers["X-RateLimit-Remaining"]) == 0:
                     print("Rate limit exceeded. Retrying in a few minutes...")
-                    time.sleep(60)  # Wait for a minute and retry
-                    r = requests.get(url + "&arrestWarrantCountryId=" + wanted_by)  # Retry the request
+                    print(retries, "retries so far.")
+                    retries += 1
+                    print("Waiting to retry..")
+                    time.sleep(retry_delay)  # Wait for the retry delay
+                    continue  # Retry the request
 
                 # Process the response data
-                response = r.json()  # Parse the response as JSON
-
-                # Check if the response data is as expected
-                if "_embedded" in response and "notices" in response["_embedded"]:
-                    notices = response["_embedded"]["notices"]
-                    print("Ülkelerden istenen: ", wanted_by, response["total"])  # Print information about the wantedBy nationality
-
-                    if response["total"] > 160:
-                        more_than_160.append(wanted_by)
-
-                    # Clean the data for the current nationality
-                    clean_data = self.clean_and_publish_data(notices)
-
-                else:
-                    print("Unexpected response format or missing data for nationality:", wanted_by)
+                return r.json()  # For example, return the JSON data
 
             except requests.exceptions.RequestException as e:
-                print("Error while fetching data for nationality:", wanted_by, e)
-                # Handle connection errors, timeouts, etc.
-
+                print(f"Error while fetching data: {e}")
             except json.JSONDecodeError as e:
-                print("Error while parsing JSON response for nationality:", wanted_by, e)
-                # Handle incomplete or unexpected data in the JSON response
-
+                print(f"Error while parsing JSON response: {e}")
             except requests.exceptions.HTTPError as e:
-                print("HTTP error occurred for nationality:", wanted_by, e)
-                # Handle specific HTTP status codes here (e.g., 404, 500)
-
+                print(f"HTTP error occurred: {e}")
             except Exception as e:
-                print("An error occurred for nationality:", wanted_by, e)
+                print(f"An error occurred: {e}")
 
-            # Add a delay between requests to avoid rate limiting
-            time.sleep(1)
+            retries += 1
+            time.sleep(retry_delay)  # Wait for the retry delay
 
-        print("WantedBy nationalities with more than 160 entries:", more_than_160)
-        return more_than_160
+        print("Max retries reached. Unable to fetch data.")
+        return None  # Return None or handle the retry limit exceeded situation as needed
 
 
-    def extract_by_gender(self, more_than_160_wanted, url):
-        """
-        Extract Interpol data by gender for nationalities with more than 160 entries.
-
-        Parameters:
-        - more_than_160_wanted (list): A list of nationalities with more than 160 entries.
-        - url (str): The base URL for the Interpol API.
-
-        Returns:
-        - more_than_160 (list): A list of tuples (wantedBy, gender) with more than 160 entries.
-        """
-            
-        more_than_160 = []
-        genders = ["U", "F", "M"]
-
-        for wanted_by in more_than_160_wanted:
-            for gender in genders:
-                try:
-                    # Make the HTTP request
-                    r = requests.get(url + "&arrestWarrantCountryId=" + wanted_by + "&sexId=" + gender)
-                    r.raise_for_status()  # Check for HTTP errors
-
-                    # Check for rate limit exceeded
-                    if "X-RateLimit-Remaining" in r.headers and int(r.headers["X-RateLimit-Remaining"]) == 0:
-                        print("Rate limit exceeded. Retrying in a few minutes...")
-                        time.sleep(60)  # Wait for a minute and retry
-                        r = requests.get(url + "&arrestWarrantCountryId=" + wanted_by + "&sexId=" + gender)  # Retry the request
-
-                    # Process the response data
-                    response = r.json()  # Parse the response as JSON
-
-                    # Check if the response data is as expected
-                    if "_embedded" in response and "notices" in response["_embedded"]:
-                        notices = response["_embedded"]["notices"]
-                        print("Ülkelerden istenen: ", wanted_by, response["total"])  # Print information about the wantedBy nationality
-
-                        if response["total"] > 160:
-                            more_than_160.append((wanted_by, gender))
-
-                        # Clean the data for the current nationality and append it to the main data list
-                        self.clean_and_publish_data(notices)
-
-                    else:
-                        print("Unexpected response format or missing data for nationality:", wanted_by)
-
-                except requests.exceptions.RequestException as e:
-                    print("Error while fetching data for nationality:", wanted_by, e)
-                    # Handle connection errors, timeouts, etc.
-
-                except json.JSONDecodeError as e:
-                    print("Error while parsing JSON response for nationality:", wanted_by, e)
-                    # Handle incomplete or unexpected data in the JSON response
-
-                except requests.exceptions.HTTPError as e:
-                    print("HTTP error occurred for nationality:", wanted_by, e)
-                    # Handle specific HTTP status codes here (e.g., 404, 500)
-
-                except Exception as e:
-                    print("An error occurred for nationality:", wanted_by, e)
-
-                # Add a delay between requests to avoid rate limiting
-                time.sleep(1)
-
-            print("WantedBy nationalities with more than 160 entries:", more_than_160)
-
-        return more_than_160
-
-    def extract_by_age(self, more_than_160_genders, url):
+    def extract_by_age(self, url):
         """
         Extract Interpol data by age for nationalities with more than 160 entries.
 
         Parameters:
         - more_than_160_genders (list): A list of tuples (wantedBy, gender) with more than 160 entries.
         - url (str): The base URL for the Interpol API.
-
-        Returns:
-        - more_than_160 (list): A list of tuples (wantedBy, gender, age_interval) with more than 160 entries.
-        """
             
+        Returns:
+        - more_than_160 (list): A list of nationalities with more than 160 entries.
+        """
+
         age_intervals = [  # Define a list of age intervals
             (18, 25),
             (25, 25),
@@ -268,8 +188,8 @@ class InterpolDataExtractor:
             (33, 33),
             (34, 34),
             (35, 35),
-            (36, 40),
-            (40, 45),
+            (36, 39),
+            (39, 45),
             (45, 50),
             (50, 70),
             (70, 90),
@@ -277,245 +197,238 @@ class InterpolDataExtractor:
         ]
         more_than_160 = []
 
-        for wanted_by, gender in more_than_160_genders:
-            for ageMin, ageMax in age_intervals:
-                try:
-                    # Make the HTTP request
-                    r = requests.get(
-                        url + "&arrestWarrantCountryId=" + wanted_by + "&sexId=" + gender +
-                        "&ageMin=" + str(ageMin) + "&ageMax=" + str(ageMax)
-                    )
-                    r.raise_for_status()  # Check for HTTP errors
+        for ageMin, ageMax in age_intervals:
+            url_with_params = url + "&ageMin=" + str(ageMin) + "&ageMax=" + str(ageMax)
+            data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-                    # Check for rate limit exceeded
-                    if "X-RateLimit-Remaining" in r.headers and int(r.headers["X-RateLimit-Remaining"]) == 0:
-                        print("Rate limit exceeded. Retrying in a few minutes...")
-                        time.sleep(60)  # Wait for a minute and retry
-                        r = requests.get(
-                            url + "&arrestWarrantCountryId=" + wanted_by + "&sexId=" + gender +
-                            "&ageMin=" + str(ageMin) + "&ageMax=" + str(ageMax)
-                        )  # Retry the request
-
-                    # Process the response data
-                    response = r.json()  # Parse the response as JSON
-
-                    # Check if the response data is as expected
-                    if "_embedded" in response and "notices" in response["_embedded"]:
-                        notices = response["_embedded"]["notices"]
-                        print("Yaş ", ageMin, "-", ageMax, response["total"])  # Print information about the age interval
-
-                        if response["total"] > 160:
-                            more_than_160.append((wanted_by, gender, (ageMin, ageMax)))
-
-                        # Clean the data for the current nationality and append it to the main data list
-                        self.clean_and_publish_data(notices)
-
-                    else:
-                        print("Unexpected response format or missing data for age interval:", ageMin, "-", ageMax)
-
-                except requests.exceptions.RequestException as e:
-                    print("Error while fetching data for age interval:", ageMin, "-", ageMax, e)
-                    # Handle connection errors, timeouts, etc.
-
-                except json.JSONDecodeError as e:
-                    print("Error while parsing JSON response for age interval:", ageMin, "-", ageMax, e)
-                    # Handle incomplete or unexpected data in the JSON response
-
-                except requests.exceptions.HTTPError as e:
-                    print("HTTP error occurred for age interval:", ageMin, "-", ageMax, e)
-                    # Handle specific HTTP status codes here (e.g., 404, 500)
-
-                except Exception as e:
-                    print("An error occurred for age interval:", ageMin, "-", ageMax, e)
-
-                # Add a delay between requests to avoid rate limiting
-                time.sleep(1)
-
-        return more_than_160
+            # Check if the response data is as expected
+            if "_embedded" in data and "notices" in data["_embedded"]:
+                notices = data["_embedded"]["notices"]
+                print("Yaş ", ageMin, "-", ageMax, data["total"])  # Print information about the age interval
     
-    def extract_by_nationality(self, more_than_160_age, url, nationalities):
+                if data["total"] > 160:
+                    more_than_160.append((ageMin, ageMax))
+
+                # Clean the data for the current nationality
+                self.clean_and_publish_data(notices)
+
+            else:
+                print("Unexpected response format or missing data for age interval:", ageMin, "-", ageMax)
+                
+        print("Age interval with more than 160 entries:", more_than_160)
+        return more_than_160
+
+
+    def extract_by_gender(self, more_than_160_age, url):
         """
-        Extract Interpol data by nationality for age-gender combinations with more than 160 entries.
+        Extract Interpol data by gender for nationalities with more than 160 entries.
 
         Parameters:
-        - more_than_160_age (list): A list of tuples (wantedBy, gender, age_interval) with more than 160 entries.
+        - more_than_160_age (list): A list of tuples (ageMin, ageMax) with more than 160 entries.
         - url (str): The base URL for the Interpol API.
-        - nationalities (list): A list of nationalities extracted from the Interpol website.
 
         Returns:
-        - more_than_160 (list): A list of tuples (wantedBy, gender, age_interval, nationality) with more than 160 entries.
+        - more_than_160 (list): A list of tuples (age interval, gender) with more than 160 entries.
         """
 
         more_than_160 = []
-        
-        for wantedBy, gender, age_interval in more_than_160_age:
-            for nation in nationalities:
-                try:
-                    # Make the HTTP request
-                    r = requests.get(
-                        url + "&arrestWarrantCountryId=" + wantedBy + "&sexId=" + gender +
-                        "&ageMin=" + str(age_interval[0]) + "&ageMax=" + str(age_interval[1]) +
-                        "&nationality=" + nation
-                    )
-                    r.raise_for_status()
-                    response = r.json()
-                    notices = response["_embedded"]["notices"]
-                    print("Ükesi ", nation, response["total"])
+        genders = ["U", "F", "M"]
 
-                    if response["total"] > 160:
-                        more_than_160.append((wantedBy, gender, age_interval, nation))
+        for ageMin, ageMax in more_than_160_age:
+            for gender in genders:
+                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}"
+                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-                    # Clean the data for the current nationality and append it to the main data list
+                # Check if the response data is as expected
+                if "_embedded" in data and "notices" in data["_embedded"]:
+                    notices = data["_embedded"]["notices"]
+                    print("Age", ageMin, "-", ageMax, "Gender", gender, data["total"])  # Print information about the age and gender
+
+                    if data["total"] > 160:
+                        more_than_160.append((ageMin, ageMax, gender))
+
+                    # Clean the data for the current age and gender
                     self.clean_and_publish_data(notices)
 
-                except requests.exceptions.RequestException as e:
-                    print("Error while fetching data for nationality:", nation, e)
-                    # Handle connection errors, timeouts, etc.
+                else:
+                    print("Unexpected response format or missing data for age", ageMin, "-", ageMax, "Gender", gender)
 
-                except json.JSONDecodeError as e:
-                    print("Error while parsing JSON response for nationality:", nation, e)
-                    # Handle incomplete or unexpected data in the JSON response
-
-                except requests.exceptions.HTTPError as e:
-                    print("HTTP error occurred for nationality:", nation, e)
-                    # Handle specific HTTP status codes here (e.g., 404, 500)
-
-                except Exception as e:
-                    print("An error occurred for nationality:", nation, e)
-
-                # Add a delay between requests to avoid rate limiting
-                time.sleep(1)
+        print("Age and Gender with more than 160 entries:", more_than_160)
         return more_than_160
 
 
-    def extract_by_letter(self, more_than_160_nat, url):
+    def extract_by_wanted(self, more_than_160_gender, url, nationalities):
         """
-        Extract Interpol data by letter (forename and name) for nationality-age-gender combinations with more than 160 entries.
+        Extract Interpol data by nationality (wantedBy).
 
         Parameters:
-        - more_than_160_nat (list): A list of tuples (wantedBy, gender, age_interval, nationality) with more than 160 entries.
+        - nationalities (list): A list of nationalities extracted from the Interpol website.
         - url (str): The base URL for the Interpol API.
 
         Returns:
-        - more_than_160 (list): A list of tuples (wantedBy, gender, age_interval, nationality) that failed to fetch data.
+        - more_than_160 (list): A list of nationalities with more than 160 entries.
         """
+        more_than_160 = []
+
+        for ageMin, ageMax, gender in more_than_160_gender:
+            for wanted_by in nationalities:
+                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}"
+                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+
+
+                # Check if the response data is as expected
+                if "_embedded" in data and "notices" in data["_embedded"]:
+                    notices = data["_embedded"]["notices"]
+                    print("Ülkelerden istenen:", wanted_by, data["total"])  # Print information about the wantedBy nationality
+
+                    if data["total"] > 160:
+                        more_than_160.append((ageMin, ageMax, gender, wanted_by))
+                    
+                    # Clean the data for the current nationality
+                    self.clean_and_publish_data(notices)
+
+                else:
+                    print("Unexpected response format or missing data for nationality:", wanted_by)
+
+                # Add a delay between requests to avoid rate limiting
+                time.sleep(1)
+
+        print("WantedBy nationalities with more than 160 entries:", more_than_160)
+        return more_than_160
+
+
+    def extract_by_nationality(self, more_than_160_wanted, url, nationalities):
+        """
+        Extract Interpol data by nationality.
+
+        Parameters:
+        - nationalities (list): A list of nationalities extracted from the Interpol website.
+        - url (str): The base URL for the Interpol API.
+
+        Returns:
+        - more_than_160 (list): A list of nationalities with more than 160 entries.
+        """
+        more_than_160 = []
+
+        for ageMin, ageMax, gender, wanted_by in more_than_160_wanted:
+            for nation in nationalities:
+                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}"
+                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+
+                # Check if the response data is as expected
+                if "_embedded" in data and "notices" in data["_embedded"]:
+                    notices = data["_embedded"]["notices"]
+                    print("Ülkesi: ", nation, data["total"]) 
+
+                    if data["total"] > 160:
+                        more_than_160.append((ageMin, ageMax, gender, wanted_by, nation))
+                    
+                    # Clean the data for the current nationality
+                    self.clean_and_publish_data(notices)
+
+                else:
+                    print("Unexpected response format or missing data for nationality:", wanted_by)
+
+                # Add a delay between requests to avoid rate limiting
+                time.sleep(1)
+
+        print("Nationalities with more than 160 entries:", more_than_160)
+        return more_than_160
+
+
+    def extract_by_forename(self, more_than_160_nat, url):
 
         more_than_160 = []
 
-        max_retries = 3
+        for ageMin, ageMax, gender, wanted_by, nation in more_than_160_nat:
+            for forename in string.ascii_uppercase:
+                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}&forename={forename}"
+                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-        for wanted_by, gender, age_interval, nation in more_than_160_nat:
-            age_min, age_max = age_interval
-            for letter in string.ascii_uppercase:
-                params = {
-                    "arrestWarrantCountryId": wanted_by,
-                    "sexId": gender,
-                    "ageMin": str(age_min),
-                    "ageMax": str(age_max),
-                    "nationality": nation,
-                    "forename": letter,
-                }
+                # Check if the response data is as expected
+                if "_embedded" in data and "notices" in data["_embedded"]:
+                    notices = data["_embedded"]["notices"]
+                    print("Soyadı harfi: ", forename, data["total"]) 
 
-                for retry in range(max_retries):
-                    try:
-                        # Make the HTTP request
-                        r = requests.get(url, params=params)
-                        r.raise_for_status()  # Check for HTTP errors
-                        response = r.json()  # Parse the response as JSON
+                    if data["total"] > 160:
+                        more_than_160.append((ageMin, ageMax, gender, wanted_by, nation, forename))
+                    
+                    # Clean the data for the current nationality
+                    self.clean_and_publish_data(notices)
 
-                        if "_embedded" in response and "notices" in response["_embedded"]:
-                            notices = response["_embedded"]["notices"]
-                            self.clean_and_publish_data(notices)
-                            break  # Break the retry loop if successful
+                else:
+                    print("Unexpected response format or missing data for nationality:", wanted_by)
 
-                        else:
-                            # The response did not contain the expected data
-                            print("Unexpected response format or missing data.")
-                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                            break  # Break the retry loop as well
+                # Add a delay between requests to avoid rate limiting
+                time.sleep(1)
 
-                    except requests.exceptions.RequestException as e:
-                        print(f"Error while fetching data: {e}")
-                        # Handle connection errors, timeouts, etc.
-                        if retry < max_retries - 1:
-                            print(f"Retrying ({retry+1}/{max_retries}) in a few seconds...")
-                            time.sleep(5)  # Wait for a few seconds and retry
-                        else:
-                            print(f"Failed to fetch data after {max_retries} retries.")
-                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                            break  # Break the retry loop as well
+        print("Nationalities with more than 160 entries:", more_than_160)
+        return more_than_160
 
-                    except json.JSONDecodeError as e:
-                        print(f"Error while parsing JSON response: {e}")
-                        # Handle incomplete or unexpected data in the JSON response
-                        more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                        break  # Break the retry loop as well
 
-                    except requests.exceptions.HTTPError as e:
-                        print(f"HTTP error occurred: {e}")
-                        # Handle specific HTTP status codes here (e.g., 404, 500)
-                        more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                        break  # Break the retry loop as well
+    def extract_by_name(self, more_than_160_forename, url):
 
-                    except Exception as e:
-                        print(f"An error occurred: {e}")
-                        more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                        break  # Break the retry loop as well
+        more_than_160 = []
 
-                for fletter in string.ascii_uppercase:
-                    params["name"] = fletter
+        for ageMin, ageMax, gender, wanted_by, nation, forename in more_than_160_forename:
+            for name in string.ascii_uppercase:
+                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}&forename={forename}&name={name}"
+                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-                    for retry in range(max_retries):
-                        try:
-                            # Make the HTTP request
-                            r = requests.get(url, params=params)
-                            r.raise_for_status()  # Check for HTTP errors
-                            response = r.json()  # Parse the response as JSON
+                # Check if the response data is as expected
+                if "_embedded" in data and "notices" in data["_embedded"]:
+                    notices = data["_embedded"]["notices"]
+                    print("Adının harfi: ", name, data["total"]) 
 
-                            if "_embedded" in response and "notices" in response["_embedded"]:
-                                notices = response["_embedded"]["notices"]
-                                self.clean_and_publish_data(notices)
-                                break  # Break the retry loop if successful
+                    if data["total"] > 160:
+                        more_than_160.append((ageMin, ageMax, gender, wanted_by, nation, forename, name))
+                    
+                    # Clean the data for the current nationality
+                    self.clean_and_publish_data(notices)
 
-                            else:
-                                # The response did not contain the expected data
-                                print("Unexpected response format or missing data.")
-                                more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                                break  # Break the retry loop as well
+                else:
+                    print("Unexpected response format or missing data for nationality:", wanted_by)
 
-                        except requests.exceptions.RequestException as e:
-                            print(f"Error while fetching data: {e}")
-                            # Handle connection errors, timeouts, etc.
-                            if retry < max_retries - 1:
-                                print(f"Retrying ({retry+1}/{max_retries}) in a few seconds...")
-                                time.sleep(5)  # Wait for a few seconds and retry
-                            else:
-                                print(f"Failed to fetch data after {max_retries} retries.")
-                                more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                                break  # Break the retry loop as well
-
-                        except json.JSONDecodeError as e:
-                            print(f"Error while parsing JSON response: {e}")
-                            # Handle incomplete or unexpected data in the JSON response
-                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                            break  # Break the retry loop as well
-
-                        except requests.exceptions.HTTPError as e:
-                            print(f"HTTP error occurred: {e}")
-                            # Handle specific HTTP status codes here (e.g., 404, 500)
-                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                            break  # Break the retry loop as well
-
-                        except Exception as e:
-                            print(f"An error occurred: {e}")
-                            more_than_160.append(params)  # Add the failed params tuple to more_than_160
-                            break  # Break the retry loop as well
+                # Add a delay between requests to avoid rate limiting
+                time.sleep(1)
 
         print("Failed to fetch data for the following tuples:")
         for params in more_than_160:
             print(params)
 
         return more_than_160
+
+
+
+    # def ducktape_extract(self, tuples, url):
+    #     more_than_160 = []
+
+    #     for ageMin, ageMax, gender, wanted_by, nation, forename, name in tuples:
+    #         url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}&forename={forename}&name={name}"
+    #         data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+
+    #         # Check if the response data is as expected
+    #         if "_embedded" in data and "notices" in data["_embedded"]:
+    #             notices = data["_embedded"]["notices"]
+    #             print("Adının harfi: ", name, data["total"]) 
+
+    #             if data["total"] > 160:
+    #                 more_than_160.append((ageMin, ageMax, gender, wanted_by, nation, forename, name))
+                
+    #             # Clean the data for the current nationality
+    #             self.clean_and_publish_data(notices)
+
+    #         else:
+    #             print("Unexpected response format or missing data for the tuple:", ageMin, ageMax, gender, wanted_by, nation, forename, name)
+
+    #         # Add a delay between requests to avoid rate limiting
+    #         time.sleep(1)
+
+    #     print("Failed to fetch data for the following tuples:")
+    #     for params in more_than_160:
+    #         print(params)
+
+    #     return more_than_160
 
 
 
@@ -526,6 +439,114 @@ class InterpolDataExtractor:
         This method calls different extraction methods to fetch data based on certain criteria.
         """
         start_time = time.time()  # Record the start time
+
+
+        # tuples_list = [
+        #     (36, 36, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (37, 37, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (38, 38, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (39, 39, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (36, 36, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (37, 37, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (38, 38, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (39, 39, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (36, 36, 'M', 'RU', 'RU', 'A', 'I'),
+        #     (37, 37, 'M', 'RU', 'RU', 'A', 'I'),
+        #     (38, 38, 'M', 'RU', 'RU', 'A', 'I'),
+        #     (39, 39, 'M', 'RU', 'RU', 'A', 'I'),
+        #     (36, 36, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (37, 37, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (38, 38, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (39, 39, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (36, 36, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (37, 37, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (38, 38, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (39, 39, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (36, 36, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (37, 37, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (38, 38, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (39, 39, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (36, 36, 'M', 'RU', 'RU', 'M', 'A'),
+        #     (37, 37, 'M', 'RU', 'RU', 'M', 'A'),
+        #     (38, 38, 'M', 'RU', 'RU', 'M', 'A'),
+        #     (39, 39, 'M', 'RU', 'RU', 'M', 'A'),
+        #     (36, 36, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (37, 37, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (38, 38, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (39, 39, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (36, 36, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (37, 37, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (38, 38, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (39, 39, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (39, 39, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (40, 40, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (41, 41, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (42, 42, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (43, 43, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (44, 44, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (45, 45, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (39, 39, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (40, 40, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (41, 41, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (42, 42, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (43, 43, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (44, 44, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (45, 45, 'M', 'RU', 'RU', 'A', 'E'),
+        #     (39, 39, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (40, 40, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (41, 41, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (42, 42, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (43, 43, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (44, 44, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (45, 45, 'M', 'RU', 'RU', 'A', 'O'),
+        #     (39, 39, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (40, 40, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (41, 41, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (42, 42, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (43, 43, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (44, 44, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (45, 45, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (39, 39, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (40, 40, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (41, 41, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (42, 42, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (43, 43, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (44, 44, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (45, 45, 'M', 'RU', 'RU', 'I', 'V'),
+        #     (39, 39, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (40, 40, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (41, 41, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (42, 42, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (43, 43, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (44, 44, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (45, 45, 'M', 'RU', 'RU', 'M', 'V'),
+        #     (39, 39, 'M', 'RU', 'RU', 'R', 'A'),
+        #     (40, 40, 'M', 'RU', 'RU', 'R', 'A'),
+        #     (41, 41, 'M', 'RU', 'RU', 'R', 'A'),
+        #     (42, 42, 'M', 'RU', 'RU', 'R', 'A'),
+        #     (43, 43, 'M', 'RU', 'RU', 'R', 'A'),
+        #     (44, 44, 'M', 'RU', 'RU', 'R', 'A'),
+        #     (45, 45, 'M', 'RU', 'RU', 'R', 'A'),
+        #     (39, 39, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (40, 40, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (41, 41, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (42, 42, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (43, 43, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (44, 44, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (45, 45, 'M', 'RU', 'RU', 'R', 'V'),
+        #     (50, 53, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (53, 55, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (55, 60, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (60, 63, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (63, 66, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (66, 70, 'M', 'RU', 'RU', 'A', 'A'),
+        #     (50, 53, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (53, 55, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (55, 60, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (60, 63, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (63, 66, 'M', 'RU', 'RU', 'A', 'V'),
+        #     (66, 70, 'M', 'RU', 'RU', 'A', 'V'),
+        # ]
         
         interpol_countries_extractor = InterpolCountriesExtractor("https://www.interpol.int/How-we-work/Notices/View-Red-Notices")
         nationalities = interpol_countries_extractor.get_extracted_nationalities()
@@ -533,23 +554,29 @@ class InterpolDataExtractor:
         try:
             base_url = "https://ws-public.interpol.int/notices/v1/red?="
 
-            more_than_160_wanted = self.extract_by_wanted(nationalities, base_url)
-            more_than_160_gender = self.extract_by_gender(more_than_160_wanted, base_url)
-            more_than_160_age = self.extract_by_age(more_than_160_gender, base_url)
-            more_than_160_nat = self.extract_by_nationality(more_than_160_age, base_url, nationalities)
-            more_than_160 = self.extract_by_letter(more_than_160_nat, base_url)
+            # kalanlar = self.ducktape_extract(tuples_list, base_url)
+
+            more_than_160_age = self.extract_by_age(base_url)
+            more_than_160_gender = self.extract_by_gender(more_than_160_age, base_url)
+            more_than_160_wanted = self.extract_by_wanted(more_than_160_gender, base_url, nationalities)  
+            more_than_160_nat = self.extract_by_nationality(more_than_160_wanted, base_url, nationalities) 
+            more_than_160_forename = self.extract_by_forename(more_than_160_nat, base_url)
+            more_than_160 = self.extract_by_name(more_than_160_forename, base_url)
             print("You cannot get these: ", len(more_than_160))
-            print(more_than_160)
+
+
+            # print("You cannot get these: ", len(kalanlar))
 
         except Exception as e:
             print("Error in main:", e)
         
-        print("Total data cleaned and published:", self.total_cleaned_data)
 
+        print("Total data cleaned and published:", self.total_cleaned_data)
 
         elapsed_minutes = (time.time() - start_time) / 60  # Calculate elapsed minutes
         print("Total data cleaned and published:", self.total_cleaned_data)
         print(f"Time elapsed: {elapsed_minutes:.2f} minutes")
+
 
 if __name__ == "__main__":
     rabbitmq_host = "container_c"  # Replace with the actual hostname or IP address of RabbitMQ
