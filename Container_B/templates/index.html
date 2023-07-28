@@ -15,7 +15,7 @@
     <h1>interpol red notices search</h1>
 
     <div class="xsform col--12">
-      <form action="/filter" method="POST">
+      <form action="/filter" method="POST" id="filterForm">
         <div class="form-group">
           <label for="name"><strong>Name</strong></label>
           <input class="form-control" type="text" name="name" id="name" placeholder="enter name">
@@ -306,6 +306,48 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <!-- Filtered Results Section -->
+    <div id="filteredResults" class="container text-center">
+      <p style="color: #0F3655; font-size: x-large;">Filtered Results</p><br/>
+      <div class="bg">
+          <div class="table-responsive">
+              <table class="table table-bordered table-striped text-center">
+                  <thead>
+                      <tr>
+                          <th>Image</th>
+                          <th>Entity ID</th>
+                          <th>Name</th>
+                          <th>Forename</th>
+                          <th>Nationalities</th>
+                          <th>Date of Birth (yy/mm/dd)</th>
+                      </tr>
+                  </thead>
+                  <tbody id="filteredResultsBody">
+                      {% for person in results %}
+                      <tr>
+                          <td>
+                              {% if person.image %}
+                              <img src="{{ person.image }}" alt="Image for {{ person.name }}"
+                              style="width: 100px; height: 100px; object-fit: cover;">
+                              {% else %}
+                                  No Image Available
+                              {% endif %}
+                          </td>
+                          <td>{{ person.entity_id }}</td>
+                          <td>{{ person.name }}</td>
+                          <td>{{ person.forename }}</td>
+                          <td>
+                              <!-- Join nationalities with commas and remove quotes and square brackets -->
+                              {{ person.nationalities | join(', ') }}
+                          </td>
+                          <td>{{ person.date_of_birth }}</td>
+                      </tr>
+                      {% endfor %}
+                  </tbody>
+              </table>
+          </div>
+      </div>
   </div>
 </div>
 

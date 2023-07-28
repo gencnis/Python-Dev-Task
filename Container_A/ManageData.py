@@ -177,7 +177,7 @@ class InterpolDataExtractor:
         """
 
         age_intervals = [  # Define a list of age intervals
-            (18, 25),
+            (18, 24),
             (25, 25),
             (26, 26),
             (27, 27),
@@ -189,32 +189,84 @@ class InterpolDataExtractor:
             (33, 33),
             (34, 34),
             (35, 35),
-            (36, 39),
-            (39, 45),
-            (45, 50),
-            (50, 70),
-            (70, 90),
+            (36, 36),
+            (37, 37),
+            (38, 38),
+            (39, 39),
+            (40, 40),
+            (41, 41),
+            (42, 42),
+            (43, 43),
+            (44, 44),
+            (45, 45),
+            (46, 46),
+            (47, 47),
+            (48, 48),
+            (49, 49),
+            (50, 50),
+            (51, 51),
+            (52, 52),
+            (53, 53),
+            (54, 54),
+            (55, 55),
+            (56, 56),
+            (57, 57),
+            (58, 58),
+            (59, 59),
+            (60, 60),
+            (61, 61),
+            (62, 62),
+            (63, 63),
+            (64, 64),
+            (65, 65),
+            (66, 66),
+            (67, 67),
+            (68, 68),
+            (69, 69),
+            (70, 75),
+            (76, 80),
+            (81, 85),
+            (86, 89),
             (90, 120)
         ]
         more_than_160 = []
 
         for ageMin, ageMax in age_intervals:
-            url_with_params = url + "&ageMin=" + str(ageMin) + "&ageMax=" + str(ageMax)
-            data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+            page = 1
+            while True:
+                url_with_params = url + "&ageMin=" + str(ageMin) + "&ageMax=" + str(ageMax)
+                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-            # Check if the response data is as expected
-            if "_embedded" in data and "notices" in data["_embedded"]:
-                notices = data["_embedded"]["notices"]
-                print("Yaş ", ageMin, "-", ageMax, data["total"])  # Print information about the age interval
-    
-                if data["total"] > 160:
-                    more_than_160.append((ageMin, ageMax))
+                # Check if the response data is as expected
+                if "_embedded" in data and "notices" in data["_embedded"]:
+                    notices = data["_embedded"]["notices"]
+                    print("Yaş ", ageMin, "-", ageMax, data["total"])  # Print information about the age interval
+        
+                    if data["total"] > 160:
+                        more_than_160.append((ageMin, ageMax))
 
-                # Clean the data for the current nationality
-                self.clean_and_publish_data(notices)
+                    # Clean the data for the current nationality
+                    self.clean_and_publish_data(notices)
 
-            else:
-                print("Unexpected response format or missing data for age interval:", ageMin, "-", ageMax)
+                else:
+                    print("Unexpected response format or missing data for age interval:", ageMin, "-", ageMax)
+
+                   # Add a delay between requests to avoid rate limiting
+                time.sleep(1)
+
+                # Check if there are more pages, if not, break the loop
+                if "last" in data["_links"]:
+                    last_page_url = data["_links"]["last"]["href"]
+                    max_pages = int(last_page_url.split("page=")[-1])
+                    page += 1  # Increment the page number for the next iteration
+                else:
+                    print("No more pages for age interval:", ageMin, "-", ageMax)
+                    break
+
+                # Check if we have reached the maximum number of pages
+                if page > max_pages:
+                    print("Reached the maximum number of pages for age interval:", ageMin, "-", ageMax)
+                    break
                 
         print("Age interval with more than 160 entries:", more_than_160)
         return more_than_160
@@ -231,28 +283,48 @@ class InterpolDataExtractor:
         Returns:
         - more_than_160 (list): A list of tuples (age interval, gender) with more than 160 entries.
         """
-
         more_than_160 = []
         genders = ["U", "F", "M"]
 
         for ageMin, ageMax in more_than_160_age:
             for gender in genders:
-                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}"
-                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+                page = 1
 
-                # Check if the response data is as expected
-                if "_embedded" in data and "notices" in data["_embedded"]:
-                    notices = data["_embedded"]["notices"]
-                    print("Age", ageMin, "-", ageMax, "Gender", gender, data["total"])  # Print information about the age and gender
+                while True:
+                    url_with_params = f"{url}&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&page={page}"
+                    data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-                    if data["total"] > 160:
-                        more_than_160.append((ageMin, ageMax, gender))
+                    # Check if the response data is as expected
+                    if "_embedded" in data and "notices" in data["_embedded"]:
+                        notices = data["_embedded"]["notices"]
+                        print("Age", ageMin, "-", ageMax, "Gender", gender, "Page", page, data["total"])  # Print information about the age, gender, and page
 
-                    # Clean the data for the current age and gender
-                    self.clean_and_publish_data(notices)
+                        if data["total"] > 160:
+                            more_than_160.append((ageMin, ageMax, gender))
 
-                else:
-                    print("Unexpected response format or missing data for age", ageMin, "-", ageMax, "Gender", gender)
+                        # Clean the data for the current age and gender
+                        self.clean_and_publish_data(notices)
+
+                    else:
+                        print("Unexpected response format or missing data for age", ageMin, "-", ageMax, "Gender", gender)
+                        break
+
+                    # Add a delay between requests to avoid rate limiting
+                    time.sleep(1)
+
+                    # Check if there are more pages, if not, break the loop
+                    if "last" in data["_links"]:
+                        last_page_url = data["_links"]["last"]["href"]
+                        max_pages = int(last_page_url.split("page=")[-1])
+                        page += 1  # Increment the page number for the next iteration
+                    else:
+                        print("No more pages for age", ageMin, "-", ageMax, "Gender", gender)
+                        break
+
+                    # Check if we have reached the maximum number of pages
+                    if page > max_pages:
+                        print("Reached the maximum number of pages for age", ageMin, "-", ageMax, "Gender", gender)
+                        break
 
         print("Age and Gender with more than 160 entries:", more_than_160)
         return more_than_160
@@ -273,26 +345,43 @@ class InterpolDataExtractor:
 
         for ageMin, ageMax, gender in more_than_160_gender:
             for wanted_by in nationalities:
-                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}"
-                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+                page = 1
 
+                while True:
+                    url_with_params = f"{url}&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&page={page}"
+                    data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-                # Check if the response data is as expected
-                if "_embedded" in data and "notices" in data["_embedded"]:
-                    notices = data["_embedded"]["notices"]
-                    print("Ülkelerden istenen:", wanted_by, data["total"])  # Print information about the wantedBy nationality
+                    # Check if the response data is as expected
+                    if "_embedded" in data and "notices" in data["_embedded"]:
+                        notices = data["_embedded"]["notices"]
+                        print("Ülkelerden istenen:", wanted_by, "Gender", gender, "Page", page, data["total"])  # Print information about the wantedBy nationality
 
-                    if data["total"] > 160:
-                        more_than_160.append((ageMin, ageMax, gender, wanted_by))
-                    
-                    # Clean the data for the current nationality
-                    self.clean_and_publish_data(notices)
+                        if data["total"] > 160:
+                            more_than_160.append((ageMin, ageMax, gender, wanted_by))
 
-                else:
-                    print("Unexpected response format or missing data for nationality:", wanted_by)
+                        # Clean the data for the current nationality
+                        self.clean_and_publish_data(notices)
 
-                # Add a delay between requests to avoid rate limiting
-                time.sleep(1)
+                    else:
+                        print("Unexpected response format or missing data for nationality:", wanted_by)
+                        break
+
+                    # Add a delay between requests to avoid rate limiting
+                    time.sleep(1)
+
+                    # Check if there are more pages, if not, break the loop
+                    if "last" in data["_links"]:
+                        last_page_url = data["_links"]["last"]["href"]
+                        max_pages = int(last_page_url.split("page=")[-1])
+                        page += 1  # Increment the page number for the next iteration
+                    else:
+                        print("No more pages for", wanted_by, "Gender", gender)
+                        break
+
+                    # Check if we have reached the maximum number of pages
+                    if page > max_pages:
+                        print("Reached the maximum number of pages for", wanted_by, "Gender", gender)
+                        break
 
         print("WantedBy nationalities with more than 160 entries:", more_than_160)
         return more_than_160
@@ -311,59 +400,95 @@ class InterpolDataExtractor:
         """
         more_than_160 = []
 
-        for ageMin, ageMax, gender, wanted_by in more_than_160_wanted:
+        for ageMin, ageMax, gender, wanted_by, nation in more_than_160_wanted:
             for nation in nationalities:
-                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}"
-                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+                page = 1
 
-                # Check if the response data is as expected
-                if "_embedded" in data and "notices" in data["_embedded"]:
-                    notices = data["_embedded"]["notices"]
-                    print("Ülkesi: ", nation, data["total"]) 
+                while True:
+                    url_with_params = f"{url}&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}&page={page}"
+                    data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-                    if data["total"] > 160:
-                        more_than_160.append((ageMin, ageMax, gender, wanted_by, nation))
-                    
-                    # Clean the data for the current nationality
-                    self.clean_and_publish_data(notices)
+                    # Check if the response data is as expected
+                    if "_embedded" in data and "notices" in data["_embedded"]:
+                        notices = data["_embedded"]["notices"]
+                        print("Ülkesi:", nation, "Gender", gender, "WantedBy", wanted_by, "Page", page, data["total"])
 
-                else:
-                    print("Unexpected response format or missing data for nationality:", wanted_by)
+                        if data["total"] > 160:
+                            more_than_160.append((ageMin, ageMax, gender, wanted_by, nation))
 
-                # Add a delay between requests to avoid rate limiting
-                time.sleep(1)
+                        # Clean the data for the current nationality
+                        self.clean_and_publish_data(notices)
+
+                    else:
+                        print("Unexpected response format or missing data for nationality:", wanted_by, "Gender", gender, "WantedBy", wanted_by)
+                        break
+
+                    # Add a delay between requests to avoid rate limiting
+                    time.sleep(1)
+
+                    # Check if there are more pages, if not, break the loop
+                    if "last" in data["_links"]:
+                        last_page_url = data["_links"]["last"]["href"]
+                        max_pages = int(last_page_url.split("page=")[-1])
+                        page += 1  # Increment the page number for the next iteration
+                    else:
+                        print("No more pages for", nation, "Gender", gender, "WantedBy", wanted_by)
+                        break
+
+                    # Check if we have reached the maximum number of pages
+                    if page > max_pages:
+                        print("Reached the maximum number of pages for", nation, "Gender", gender, "WantedBy", wanted_by)
+                        break
 
         print("Nationalities with more than 160 entries:", more_than_160)
         return more_than_160
-
 
     def extract_by_forename(self, more_than_160_nat, url):
 
         more_than_160 = []
 
-        for ageMin, ageMax, gender, wanted_by, nation in more_than_160_nat:
+
+        for ageMin, ageMax, gender, wanted_by, nation, forename in more_than_160_nat:
             for forename in string.ascii_uppercase:
-                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}&forename={forename}"
-                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+                page = 1
 
-                # Check if the response data is as expected
-                if "_embedded" in data and "notices" in data["_embedded"]:
-                    notices = data["_embedded"]["notices"]
-                    print("Soyadı harfi: ", forename, data["total"]) 
+                while True:
+                    url_with_params = f"{url}&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}&forename={forename}&page={page}"
+                    data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-                    if data["total"] > 160:
-                        more_than_160.append((ageMin, ageMax, gender, wanted_by, nation, forename))
-                    
-                    # Clean the data for the current nationality
-                    self.clean_and_publish_data(notices)
+                    # Check if the response data is as expected
+                    if "_embedded" in data and "notices" in data["_embedded"]:
+                        notices = data["_embedded"]["notices"]
+                        print("Soyadı harfi:", forename, "Gender", gender, "WantedBy", wanted_by, "Nationality", nation, "Page", page, data["total"]) 
 
-                else:
-                    print("Unexpected response format or missing data for nationality:", wanted_by)
+                        if data["total"] > 160:
+                            more_than_160.append((ageMin, ageMax, gender, wanted_by, nation, forename))
 
-                # Add a delay between requests to avoid rate limiting
-                time.sleep(1)
+                        # Clean the data for the current nationality
+                        self.clean_and_publish_data(notices)
 
-        print("Nationalities with more than 160 entries:", more_than_160)
+                    else:
+                        print("Unexpected response format or missing data for nationality:", wanted_by, "Gender", gender, "WantedBy", wanted_by)
+                        break
+
+                    # Add a delay between requests to avoid rate limiting
+                    time.sleep(1)
+
+                    # Check if there are more pages, if not, break the loop
+                    if "last" in data["_links"]:
+                        last_page_url = data["_links"]["last"]["href"]
+                        max_pages = int(last_page_url.split("page=")[-1])
+                        page += 1  # Increment the page number for the next iteration
+                    else:
+                        print("No more pages for", forename, "Gender", gender, "WantedBy", wanted_by, "Nationality", nation)
+                        break
+
+                    # Check if we have reached the maximum number of pages
+                    if page > max_pages:
+                        print("Reached the maximum number of pages for", forename, "Gender", gender, "WantedBy", wanted_by, "Nationality", nation)
+                        break
+
+        print("Forenames with more than 160 entries:", more_than_160)
         return more_than_160
 
 
@@ -373,111 +498,46 @@ class InterpolDataExtractor:
 
         for ageMin, ageMax, gender, wanted_by, nation, forename in more_than_160_forename:
             for name in string.ascii_uppercase:
-                url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}&forename={forename}&name={name}"
-                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
+                page = 1
 
-                # Check if the response data is as expected
-                if "_embedded" in data and "notices" in data["_embedded"]:
-                    notices = data["_embedded"]["notices"]
-                    print("Adının harfi: ", name, data["total"]) 
+                while True:
+                    url_with_params = f"{url}&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}&forename={forename}&name={name}&page={page}"
+                    data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
 
-                    if data["total"] > 160:
-                        more_than_160.append((ageMin, ageMax, gender, wanted_by, nation, forename, name))
-                    
-                    # Clean the data for the current nationality
-                    self.clean_and_publish_data(notices)
+                    # Check if the response data is as expected
+                    if "_embedded" in data and "notices" in data["_embedded"]:
+                        notices = data["_embedded"]["notices"]
+                        print("Adının harfi:", name, "Forename", forename, "Gender", gender, "WantedBy", wanted_by, "Nationality", nation, "Page", page, data["total"]) 
 
-                else:
-                    print("Unexpected response format or missing data for nationality:", wanted_by)
+                        if data["total"] > 160:
+                            more_than_160.append((ageMin, ageMax, gender, wanted_by, nation, forename, name))
 
-                # Add a delay between requests to avoid rate limiting
-                time.sleep(1)
+                        # Clean the data for the current nationality
+                        self.clean_and_publish_data(notices)
 
-        print("Failed to fetch data for the following tuples:")
-        for params in more_than_160:
-            print(params)
+                    else:
+                        print("Unexpected response format or missing data for nationality:", wanted_by, "Forename", forename, "Gender", gender, "WantedBy", wanted_by)
+                        break
 
+                    # Add a delay between requests to avoid rate limiting
+                    time.sleep(1)
+
+                    # Check if there are more pages, if not, break the loop
+                    if "last" in data["_links"]:
+                        last_page_url = data["_links"]["last"]["href"]
+                        max_pages = int(last_page_url.split("page=")[-1])
+                        page += 1  # Increment the page number for the next iteration
+                    else:
+                        print("No more pages for", name, "Forename", forename, "Gender", gender, "WantedBy", wanted_by, "Nationality", nation)
+                        break
+
+                    # Check if we have reached the maximum number of pages
+                    if page > max_pages:
+                        print("Reached the maximum number of pages for", name, "Forename", forename, "Gender", gender, "WantedBy", wanted_by, "Nationality", nation)
+                        break
+
+        print("Names with more than 160 entries:", more_than_160)
         return more_than_160
-
-
-
-    # def ducktape_extract(self, tuples, url):
-    #     more_than_160 = []
-
-    #     for ageMin, ageMax, gender, wanted_by, nation, forename, name in tuples:
-    #         url_with_params = url + f"&sexId={gender}&ageMin={ageMin}&ageMax={ageMax}&arrestWarrantCountryId={wanted_by}&nationality={nation}&forename={forename}&name={name}"
-    #         data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
-
-    #         # Check if the response data is as expected
-    #         if "_embedded" in data and "notices" in data["_embedded"]:
-    #             notices = data["_embedded"]["notices"]
-    #             print("Adının harfi: ", name, data["total"]) 
-
-    #             if data["total"] > 160:
-    #                 more_than_160.append((ageMin, ageMax, gender, wanted_by, nation, forename, name))
-                
-    #             # Clean the data for the current nationality
-    #             self.clean_and_publish_data(notices)
-
-    #         else:
-    #             print("Unexpected response format or missing data for the tuple:", ageMin, ageMax, gender, wanted_by, nation, forename, name)
-
-    #         # Add a delay between requests to avoid rate limiting
-    #         time.sleep(1)
-
-    #     print("Failed to fetch data for the following tuples:")
-    #     for params in more_than_160:
-    #         print(params)
-
-    #     return more_than_160
-
-
-    def write_to_csv(self, base_url):
-        """
-        Write the total parameter for each age interval to a CSV file.
-
-        The CSV file will have two columns: 'Age Interval' and 'Total Parameter'.
-
-        The data for each age interval will be written as a separate row in the CSV file.
-        """
-        age_intervals = [
-            (18, 25),
-            (25, 25),
-            (26, 26),
-            (27, 27),
-            (28, 28),
-            (29, 29),
-            (30, 30),
-            (31, 31),
-            (32, 32),
-            (33, 33),
-            (34, 34),
-            (35, 35),
-            (36, 39),
-            (39, 45),
-            (45, 50),
-            (50, 70),
-            (70, 90),
-            (90, 120)
-        ]
-
-        with open('age_intervals_totals.csv', 'w', newline='') as csvfile:
-            fieldnames = ['Age Interval', 'Total Parameter']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-            writer.writeheader()
-
-            for ageMin, ageMax in age_intervals:
-                url_with_params = base_url + "&ageMin=" + str(ageMin) + "&ageMax=" + str(ageMax)
-                data = self.fetch_data_with_retry(url_with_params, max_retries=15, retry_delay=120)
-
-                # Check if the response data is as expected
-                if "_embedded" in data and "notices" in data["_embedded"]:
-                    total_parameter = data["total"]
-                else:
-                    total_parameter = "N/A"
-
-                writer.writerow({'Age Interval': f"{ageMin}-{ageMax}", 'Total Parameter': total_parameter})
 
 
 
@@ -488,124 +548,11 @@ class InterpolDataExtractor:
         This method calls different extraction methods to fetch data based on certain criteria.
         """
         start_time = time.time()  # Record the start time
-
-
-        # tuples_list = [
-        #     (36, 36, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (37, 37, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (38, 38, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (39, 39, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (36, 36, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (37, 37, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (38, 38, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (39, 39, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (36, 36, 'M', 'RU', 'RU', 'A', 'I'),
-        #     (37, 37, 'M', 'RU', 'RU', 'A', 'I'),
-        #     (38, 38, 'M', 'RU', 'RU', 'A', 'I'),
-        #     (39, 39, 'M', 'RU', 'RU', 'A', 'I'),
-        #     (36, 36, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (37, 37, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (38, 38, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (39, 39, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (36, 36, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (37, 37, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (38, 38, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (39, 39, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (36, 36, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (37, 37, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (38, 38, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (39, 39, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (36, 36, 'M', 'RU', 'RU', 'M', 'A'),
-        #     (37, 37, 'M', 'RU', 'RU', 'M', 'A'),
-        #     (38, 38, 'M', 'RU', 'RU', 'M', 'A'),
-        #     (39, 39, 'M', 'RU', 'RU', 'M', 'A'),
-        #     (36, 36, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (37, 37, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (38, 38, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (39, 39, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (36, 36, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (37, 37, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (38, 38, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (39, 39, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (39, 39, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (40, 40, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (41, 41, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (42, 42, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (43, 43, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (44, 44, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (45, 45, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (39, 39, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (40, 40, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (41, 41, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (42, 42, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (43, 43, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (44, 44, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (45, 45, 'M', 'RU', 'RU', 'A', 'E'),
-        #     (39, 39, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (40, 40, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (41, 41, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (42, 42, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (43, 43, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (44, 44, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (45, 45, 'M', 'RU', 'RU', 'A', 'O'),
-        #     (39, 39, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (40, 40, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (41, 41, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (42, 42, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (43, 43, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (44, 44, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (45, 45, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (39, 39, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (40, 40, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (41, 41, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (42, 42, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (43, 43, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (44, 44, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (45, 45, 'M', 'RU', 'RU', 'I', 'V'),
-        #     (39, 39, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (40, 40, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (41, 41, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (42, 42, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (43, 43, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (44, 44, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (45, 45, 'M', 'RU', 'RU', 'M', 'V'),
-        #     (39, 39, 'M', 'RU', 'RU', 'R', 'A'),
-        #     (40, 40, 'M', 'RU', 'RU', 'R', 'A'),
-        #     (41, 41, 'M', 'RU', 'RU', 'R', 'A'),
-        #     (42, 42, 'M', 'RU', 'RU', 'R', 'A'),
-        #     (43, 43, 'M', 'RU', 'RU', 'R', 'A'),
-        #     (44, 44, 'M', 'RU', 'RU', 'R', 'A'),
-        #     (45, 45, 'M', 'RU', 'RU', 'R', 'A'),
-        #     (39, 39, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (40, 40, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (41, 41, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (42, 42, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (43, 43, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (44, 44, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (45, 45, 'M', 'RU', 'RU', 'R', 'V'),
-        #     (50, 53, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (53, 55, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (55, 60, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (60, 63, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (63, 66, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (66, 70, 'M', 'RU', 'RU', 'A', 'A'),
-        #     (50, 53, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (53, 55, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (55, 60, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (60, 63, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (63, 66, 'M', 'RU', 'RU', 'A', 'V'),
-        #     (66, 70, 'M', 'RU', 'RU', 'A', 'V'),
-        # ]
-        
         interpol_countries_extractor = InterpolCountriesExtractor("https://www.interpol.int/How-we-work/Notices/View-Red-Notices")
         nationalities = interpol_countries_extractor.get_extracted_nationalities()
 
         try:
             base_url = "https://ws-public.interpol.int/notices/v1/red?="
-
-            # kalanlar = self.ducktape_extract(tuples_list, base_url)
-
-            self.write_to_csv(base_url)
 
             more_than_160_age = self.extract_by_age(base_url)
             more_than_160_gender = self.extract_by_gender(more_than_160_age, base_url)
@@ -614,9 +561,6 @@ class InterpolDataExtractor:
             more_than_160_forename = self.extract_by_forename(more_than_160_nat, base_url)
             more_than_160 = self.extract_by_name(more_than_160_forename, base_url)
             print("You cannot get these: ", len(more_than_160))
-
-
-            # print("You cannot get these: ", len(kalanlar))
 
         except Exception as e:
             print("Error in main:", e)

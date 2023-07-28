@@ -72,7 +72,6 @@ def index():
 
 @app.route('/filter', methods=['POST'])
 def filter_data():
-    """Filter the data based on the provided criteria and return the results."""
     forename = request.form.get('name')
     date_of_birth = request.form.get('date_of_birth')
     entity_id = request.form.get('entity_id')
@@ -95,16 +94,23 @@ def filter_data():
     if image:
         filtered_data = filtered_data.filter(Person.image == image)
 
-
     results = filtered_data.all()
-
 
     # Format the nationalities field from JSON string to list of country names
     for person in results:
         nationalities_list = json.loads(person.nationalities) 
         person.nationalities = [COUNTRY_NAMES.get(country_code, country_code) for country_code in nationalities_list]
 
-    return render_template('results.html', results=results)
+    # Convert the SQLAlchemy objects to dictionaries for JSON serialization
+    data = [person.__dict__ for person in results]
+
+    # Remove any unnecessary keys (e.g., '_sa_instance_state') from the dictionary
+    for person_data in data:
+        person_data.pop('_sa_instance_state', None)
+
+    # Return the filtered results in JSON format
+    return jsonify(data=data)
+
 
 
 def start_rabbitmq_consumer():
