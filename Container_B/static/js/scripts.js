@@ -1,3 +1,6 @@
+/* @Author: Nisanur Genc */
+
+
 // Function to check if any input field has a value and enable/disable the "Filter" button accordingly
 function checkFields() {
   const name = document.getElementById("name").value;
@@ -96,7 +99,7 @@ document.querySelector('form[action="/filter"]').addEventListener('submit', func
             // For the 'image' column, create an img element
             if (column === 'image') {
               const imgElement = document.createElement('img');
-              imgElement.src = `/images/${person.entity_id}.jpg`; // Assuming the image filenames are 'entity_id.jpg'
+              imgElement.src = `/images/${person.entity_id}.jpg`; 
               imgElement.alt = `Image for ${person.name}`;
               imgElement.style.width = '100px';
               imgElement.style.height = '100px';

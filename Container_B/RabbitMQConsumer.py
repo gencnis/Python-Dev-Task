@@ -1,17 +1,35 @@
+"""
+RabbitMQConsumer.py
+
+This module contains the RabbitMQConsumer class responsible for consuming data from RabbitMQ, processing it, and storing it in the PostgreSQL database.
+
+@Author: Nisanur Genc
+
+"""
+
 import json
 import pika
 import time
 
 class RabbitMQConsumer:
+    """
+    Class for consuming data from RabbitMQ, processing it, and storing it in the PostgreSQL database.
+    """
+        
     def __init__(self, hostname, port, queue_name, db_registrar):
         """
         Constructor for the RabbitMQConsumer class.
 
-        Parameters:
-        - hostname (str): The hostname or IP address of the RabbitMQ server.
-        - port (int): The port number for the RabbitMQ server (default is usually 5672).
-        - queue_name (str): The name of the queue to which data will be published.
+        :param hostname: The hostname or IP address of the RabbitMQ server.
+        :type hostname: str
+        :param port: The port number for the RabbitMQ server (default is usually 5672).
+        :type port: int
+        :param queue_name: The name of the queue to which data will be published.
+        :type queue_name: str
+        :param db_registrar: The instance of DBRegistrar for storing data in the database.
+        :type db_registrar: db_registrar.DBRegistrar
         """
+
         self.hostname = hostname
         self.port = port
         self.queue_name = queue_name
@@ -36,6 +54,7 @@ class RabbitMQConsumer:
         This method is called by the constructor to establish the connection to RabbitMQ.
         If the connection fails, it will attempt to reconnect with a maximum number of retries.
         """
+        
         max_retries = 5
         retry_interval = 5  # Retry every 5 seconds
         retry_count = 0

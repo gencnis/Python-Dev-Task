@@ -22,11 +22,21 @@ import string
 import time
 import requests
 import json
-import csv
-
 
 class ExtractImages:
     def fetch_image_url(self, image_data, entity_id, max_retries=9, retry_delay=200):
+        """
+        Fetches the URL of the image from the given image_data.
+
+        Args:
+            image_data (dict): A dictionary containing image data with 'href' key.
+            entity_id (str): The ID of the entity associated with the image.
+            max_retries (int, optional): Maximum number of retries in case of a failure. Default is 9.
+            retry_delay (int, optional): Delay (in milliseconds) between retries. Default is 200ms.
+
+        Returns:
+            str: The URL of the image if successfully fetched, otherwise "No Image Available".
+        """
         retries = 0
 
         while retries < max_retries:
@@ -66,6 +76,8 @@ class ExtractImages:
 
         print(f"Max retries reached. Unable to fetch image URL.")
         return "No Image Available"
+    
+
 
 class InterpolDataExtractor:
     def __init__(self, hostname, port, queue_name):
@@ -73,12 +85,12 @@ class InterpolDataExtractor:
         Constructor for the InterpolDataExtractor class.
 
         Parameters:
-        - hostname (str): The hostname or IP address of the RabbitMQ server.
-        - port (int): The port number for the RabbitMQ server (default is usually 5672).
-        - queue_name (str): The name of the queue to which data will be published.
+            hostname (str): The hostname or IP address of the RabbitMQ server.
+            port (int): The port number for the RabbitMQ server (default is usually 5672).
+            queue_name (str): The name of the queue to which data will be published.
         """
         self.total_cleaned_data = 0
-        self.cleaned_data = set()  # Change from list to set
+        self.cleaned_data = set()  # Using a set to store unique entity_ids
         self.rabbitmq_publisher = RabbitMQConnection(hostname, port, queue_name)
 
     def clean_and_publish_data(self, notices):
@@ -86,7 +98,7 @@ class InterpolDataExtractor:
         Clean the data for each notice and publish it to RabbitMQ.
 
         Parameters:
-        - notices (list): A list of Interpol notices obtained from the API response.
+            notices (list): A list of Interpol notices obtained from the API response.
         """
         clean_data = []
         image_extractor = ExtractImages()  # Create an instance of the ExtractImages class
@@ -126,8 +138,20 @@ class InterpolDataExtractor:
         for data_item in clean_data:
             self.rabbitmq_publisher.publish_data(data_item)
 
+
     @staticmethod
     def fetch_data_with_retry(url, max_retries=15, retry_delay=300):
+        """
+        Fetch data from the given URL with automatic retry in case of HTTP errors.
+
+        Parameters:
+            url (str): The URL to fetch data from.
+            max_retries (int, optional): Maximum number of retries in case of a failure. Default is 15.
+            retry_delay (int, optional): Delay (in seconds) between retries. Default is 300 seconds (5 minutes).
+
+        Returns:
+            dict or list or None: The JSON response data if successfully fetched, None if max_retries reached.
+        """
         retries = 0
 
         while retries < max_retries:
@@ -164,16 +188,20 @@ class InterpolDataExtractor:
         return None  # Return None or handle the retry limit exceeded situation as needed
 
 
+
     def extract_by_age(self, url):
         """
-        Extract Interpol data by age for nationalities with more than 160 entries.
+        Extract Interpol data for age intervals and identify those with more than 160 entries.
+
+        This method fetches Interpol data for various age intervals and identifies those age intervals
+        that have more than 160 entries. For each age interval, the data is cleaned and published if it
+        has less than or equal to 160 entries. The age intervals with more than 160 entries are added to a list.
 
         Parameters:
-        - more_than_160_genders (list): A list of tuples (wantedBy, gender) with more than 160 entries.
-        - url (str): The base URL for the Interpol API.
-            
+            url (str): The base URL for the Interpol API.
+
         Returns:
-        - more_than_160 (list): A list of nationalities with more than 160 entries.
+            list: A list of tuples (ageMin, ageMax) representing age intervals with more than 160 entries.
         """
 
         age_intervals = [  # Define a list of age intervals
@@ -229,7 +257,7 @@ class InterpolDataExtractor:
             (86, 89),
             (90, 120)
         ]
-        more_than_160 = []
+        more_than_160 = []  # List to store age intervals with more than 160 entries
 
         for ageMin, ageMax in age_intervals:
             page = 1
@@ -245,13 +273,13 @@ class InterpolDataExtractor:
                     if data["total"] > 160:
                         more_than_160.append((ageMin, ageMax))
 
-                    # Clean the data for the current nationality
+                    # Clean the data for the current age interval and publish it
                     self.clean_and_publish_data(notices)
 
                 else:
                     print("Unexpected response format or missing data for age interval:", ageMin, "-", ageMax)
 
-                   # Add a delay between requests to avoid rate limiting
+                # Add a delay between requests to avoid rate limiting
                 time.sleep(1)
 
                 # Check if there are more pages, if not, break the loop
@@ -274,16 +302,22 @@ class InterpolDataExtractor:
 
     def extract_by_gender(self, more_than_160_age, url):
         """
-        Extract Interpol data by gender for nationalities with more than 160 entries.
+        Extract Interpol data by gender for age intervals with more than 160 entries.
+
+        This method fetches Interpol data for various age intervals and genders and identifies
+        those combinations (age interval, gender) that have more than 160 entries. For each combination,
+        the data is cleaned and published if it has less than or equal to 160 entries. The combinations with
+        more than 160 entries are added to a list.
 
         Parameters:
-        - more_than_160_age (list): A list of tuples (ageMin, ageMax) with more than 160 entries.
-        - url (str): The base URL for the Interpol API.
+            more_than_160_age (list): A list of tuples (ageMin, ageMax) representing age intervals with more than 160 entries.
+            url (str): The base URL for the Interpol API.
 
         Returns:
-        - more_than_160 (list): A list of tuples (age interval, gender) with more than 160 entries.
+            list: A list of tuples (age interval, gender) representing combinations with more than 160 entries.
         """
-        more_than_160 = []
+
+        more_than_160 = []  # List to store combinations (age interval, gender) with more than 160 entries
         genders = ["U", "F", "M"]
 
         for ageMin, ageMax in more_than_160_age:
@@ -302,7 +336,7 @@ class InterpolDataExtractor:
                         if data["total"] > 160:
                             more_than_160.append((ageMin, ageMax, gender))
 
-                        # Clean the data for the current age and gender
+                        # Clean the data for the current age and gender and publish it if it has less than or equal to 160 entries
                         self.clean_and_publish_data(notices)
 
                     else:
@@ -332,16 +366,22 @@ class InterpolDataExtractor:
 
     def extract_by_wanted(self, more_than_160_gender, url, nationalities):
         """
-        Extract Interpol data by nationality (wantedBy).
+        Extract Interpol data by nationality (wantedBy) and identify those with more than 160 entries.
+
+        This method fetches Interpol data for various age intervals, genders, and nationalities (wantedBy) and identifies
+        those combinations (age interval, gender, wantedBy) that have more than 160 entries. For each combination,
+        the data is cleaned and published if it has less than or equal to 160 entries. The combinations with
+        more than 160 entries are added to a list.
 
         Parameters:
-        - nationalities (list): A list of nationalities extracted from the Interpol website.
-        - url (str): The base URL for the Interpol API.
+            more_than_160_gender (list): A list of tuples (ageMin, ageMax, gender) representing combinations with more than 160 entries.
+            url (str): The base URL for the Interpol API.
+            nationalities (list): A list of nationalities extracted from the Interpol website.
 
         Returns:
-        - more_than_160 (list): A list of nationalities with more than 160 entries.
+            list: A list of tuples (age interval, gender, wantedBy) representing combinations with more than 160 entries.
         """
-        more_than_160 = []
+        more_than_160 = [] # List to store combinations (age interval, gender, wantedBy) with more than 160 entries
 
         for ageMin, ageMax, gender in more_than_160_gender:
             for wanted_by in nationalities:
@@ -389,16 +429,23 @@ class InterpolDataExtractor:
 
     def extract_by_nationality(self, more_than_160_wanted, url, nationalities):
         """
-        Extract Interpol data by nationality.
+        Extract Interpol data by nationality and identify those with more than 160 entries.
+
+        This method fetches Interpol data for various age intervals, genders, wantedBy nationalities, and target nationalities
+        and identifies those combinations (age interval, gender, wantedBy, nationality) that have more than 160 entries.
+        For each combination, the data is cleaned and published if it has less than or equal to 160 entries. The combinations with
+        more than 160 entries are added to a list.
 
         Parameters:
-        - nationalities (list): A list of nationalities extracted from the Interpol website.
-        - url (str): The base URL for the Interpol API.
+            more_than_160_wanted (list): A list of tuples (ageMin, ageMax, gender, wantedBy, nationality) representing combinations with more than 160 entries.
+            url (str): The base URL for the Interpol API.
+            nationalities (list): A list of nationalities extracted from the Interpol website.
 
         Returns:
-        - more_than_160 (list): A list of nationalities with more than 160 entries.
+            list: A list of tuples (age interval, gender, wantedBy, nationality) representing combinations with more than 160 entries.
         """
-        more_than_160 = []
+
+        more_than_160 = []  # List to store combinations (age interval, gender, wantedBy, nationality) with more than 160 entries
 
         for ageMin, ageMax, gender, wanted_by, nation in more_than_160_wanted:
             for nation in nationalities:
@@ -444,8 +491,23 @@ class InterpolDataExtractor:
         return more_than_160
 
     def extract_by_forename(self, more_than_160_nat, url):
+        """
+        Extract Interpol data by forename and identify those with more than 160 entries.
 
-        more_than_160 = []
+        This method fetches Interpol data for various age intervals, genders, wantedBy nationalities,
+        target nationalities, and forenames, and identifies those combinations (age interval, gender, wantedBy, nationality, forename)
+        that have more than 160 entries. For each combination, the data is cleaned and published if it has less than or equal to 160 entries.
+        The combinations with more than 160 entries are added to a list.
+
+        Parameters:
+            more_than_160_nat (list): A list of tuples (ageMin, ageMax, gender, wantedBy, nationality, forename) representing combinations with more than 160 entries.
+            url (str): The base URL for the Interpol API.
+
+        Returns:
+            list: A list of tuples (age interval, gender, wantedBy, nationality, forename) representing combinations with more than 160 entries.
+        """
+
+        more_than_160 = [] # List to store combinations (age interval, gender, wantedBy, nationality, forename) with more than 160 entries
 
 
         for ageMin, ageMax, gender, wanted_by, nation, forename in more_than_160_nat:
@@ -493,8 +555,25 @@ class InterpolDataExtractor:
 
 
     def extract_by_name(self, more_than_160_forename, url):
+        """
+        Extract Interpol data by name and identify those with more than 160 entries.
 
-        more_than_160 = []
+        This method fetches Interpol data for various age intervals, genders, wantedBy nationalities,
+        target nationalities, forenames, and names, and identifies those combinations (age interval, gender, wantedBy, nationality, forename, name)
+        that have more than 160 entries. For each combination, the data is cleaned and published if it has less than or equal to 160 entries.
+        The combinations with more than 160 entries are added to a list.
+
+        Parameters:
+            more_than_160_forename (list): A list of tuples (ageMin, ageMax, gender, wantedBy, nationality, forename) representing combinations with more than 160 entries.
+            url (str): The base URL for the Interpol API.
+
+        Returns:
+            list: A list of tuples (age interval, gender, wantedBy, nationality, forename, name) representing combinations with more than 160 entries.
+        """
+
+
+        more_than_160 = []  # List to store combinations (age interval, gender, wantedBy, nationality, forename, name) with more than 160 entries
+
 
         for ageMin, ageMax, gender, wanted_by, nation, forename in more_than_160_forename:
             for name in string.ascii_uppercase:
@@ -545,25 +624,53 @@ class InterpolDataExtractor:
         """
         Start the data extraction process.
 
-        This method calls different extraction methods to fetch data based on certain criteria.
+        This method initiates the data extraction process by calling different extraction methods 
+        to fetch data based on various criteria (age intervals, genders, wantedBy nationalities, target nationalities, forenames, names).
+        It records the start time and calculates the elapsed time after the data extraction process is completed.
+
+        Note: This method relies on other extraction methods to perform the specific data fetching and cleaning tasks.
+
+        Raises:
+            Exception: If an error occurs during the data extraction process.
+
+        Returns:
+            None
         """
         start_time = time.time()  # Record the start time
         interpol_countries_extractor = InterpolCountriesExtractor("https://www.interpol.int/How-we-work/Notices/View-Red-Notices")
         nationalities = interpol_countries_extractor.get_extracted_nationalities()
 
         try:
-            base_url = "https://ws-public.interpol.int/notices/v1/red?="
+            base_url = "https://ws-public.interpol.int/notices/v1/red?"
 
+            # Extract data for age intervals
             more_than_160_age = self.extract_by_age(base_url)
+
+            # Extract data for genders with more than 160 entries
             more_than_160_gender = self.extract_by_gender(more_than_160_age, base_url)
-            more_than_160_wanted = self.extract_by_wanted(more_than_160_gender, base_url, nationalities)  
-            more_than_160_nat = self.extract_by_nationality(more_than_160_wanted, base_url, nationalities) 
+
+            # Extract data for wantedBy nationalities with more than 160 entries
+            more_than_160_wanted = self.extract_by_wanted(more_than_160_gender, base_url, nationalities)
+
+            # Extract data for target nationalities with more than 160 entries
+            more_than_160_nat = self.extract_by_nationality(more_than_160_wanted, base_url, nationalities)
+
+            # Extract data for forenames with more than 160 entries
             more_than_160_forename = self.extract_by_forename(more_than_160_nat, base_url)
+
+            # Extract data for names with more than 160 entries
             more_than_160 = self.extract_by_name(more_than_160_forename, base_url)
-            print("You cannot get these: ", len(more_than_160))
+
+            print("Combinations with more than 160 entries:", len(more_than_160))
 
         except Exception as e:
             print("Error in main:", e)
+
+        print("Total data cleaned and published:", self.total_cleaned_data)
+
+        elapsed_minutes = (time.time() - start_time) / 60  # Calculate elapsed minutes
+        print(f"Time elapsed: {elapsed_minutes:.2f} minutes")
+
         
 
         print("Total data cleaned and published:", self.total_cleaned_data)
@@ -574,7 +681,7 @@ class InterpolDataExtractor:
 
 
 if __name__ == "__main__":
-    rabbitmq_host = "container_c"  # Replace with the actual hostname or IP address of RabbitMQ
+    rabbitmq_host = "container_c"  # hostname or IP address of RabbitMQ
     rabbitmq_port = 5672  # The default port for RabbitMQ
     queue_name = "interpol_data"  # The name of the RabbitMQ queue
 

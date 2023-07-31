@@ -1,3 +1,15 @@
+"""
+app.py
+
+This script defines a Flask web application with a PostgreSQL database. It includes functionalities to consume data from a RabbitMQ queue,
+store it in the database, and provide endpoints for retrieving and filtering the data. The application also serves static files and images.
+
+@Author: Nisanur Genc
+
+"""
+
+
+
 import json
 from RabbitMQConsumer import RabbitMQConsumer
 from db_registrar import DBRegistrar
@@ -17,6 +29,7 @@ COUNTRY_NAMES = read_country_data("countries.txt")
 
 
 class Person(my_db.Model):
+    """Model class representing a Person entity in the database."""
     forename = my_db.Column(my_db.String(100))
     date_of_birth = my_db.Column(my_db.String(100))
     entity_id = my_db.Column(my_db.String(100), primary_key=True)
@@ -40,11 +53,13 @@ def clean_database():
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
+    """Serve images from the 'image_data' directory."""
     return send_from_directory('./image_data', filename)
 
 
 @app.route('/live_data', methods=['POST'])
 def live_data():
+    """Retrieve live data from the database and return it in JSON format."""
     total_people = Person.query.count()
     people = Person.query.all()
 
@@ -72,6 +87,7 @@ def index():
 
 @app.route('/filter', methods=['POST'])
 def filter_data():
+    """Filter the data based on the provided criteria and return the filtered results in JSON format."""
     forename = request.form.get('name')
     date_of_birth = request.form.get('date_of_birth')
     entity_id = request.form.get('entity_id')
@@ -121,6 +137,7 @@ def start_rabbitmq_consumer():
 
 
 def main():
+    """Main function to start the Flask application, create database tables, and consume data from RabbitMQ."""
     # Create the database tables if they don't exist
     my_db.create_all()
     print("---- Database created. ----")

@@ -1,17 +1,42 @@
-# db_registrar.py
+"""
+db_registrar.py
+
+This module contains the DBRegistrar class responsible for processing and storing data in the PostgreSQL database.
+
+@Author: Nisanur Genc
+
+"""
+
 import json
 import os
 from flask_sqlalchemy import SQLAlchemy
 import requests
 
 class DBRegistrar:
+    """Class for processing and storing data in the PostgreSQL database."""
+
     def __init__(self, person_model, db):
+        """
+        Initialize the DBRegistrar.
+
+        :param person_model: The Person model class.
+        :type person_model: class
+        :param db: The SQLAlchemy database instance.
+        :type db: flask_sqlalchemy.SQLAlchemy
+        """
         self.person_model = person_model
         self.db = db
 
 
-
     def download_image(self, url, filename):
+        """
+        Download an image from the given URL and save it to the image_data directory.
+
+        :param url: The URL of the image to download.
+        :type url: str
+        :param filename: The filename to use when saving the image.
+        :type filename: str
+        """
         try:
             response = requests.get(url)
             response.raise_for_status()
@@ -41,7 +66,13 @@ class DBRegistrar:
 
 
     def store_data_to_my_db(self, data):
-        """Process and store the data in the PostgreSQL database."""
+        """
+        Process and store the data in the PostgreSQL database.
+
+        :param data: The data to be stored in the database.
+        :type data: dict
+        """
+        
         try:
             # Print the received message body to check the actual data
             print("Received Message Body:", data)
