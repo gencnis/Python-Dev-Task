@@ -288,7 +288,7 @@
                 <td>
                     {% if person.image %}
                     <img src="{{ url_for('serve_image', filename=person.entity_id ~ '.jpg') }}"
-                        alt="Image for {{ person.name }}"
+                        alt="No Image Available For Now"
                         style="width: 100px; height: 100px; object-fit: cover;">
                     {% else %}
                     No Image Available
@@ -329,7 +329,7 @@
                       <tr>
                           <td>
                               {% if person.image %}
-                              <img src="{{ person.image }}" alt="Image for {{ person.name }}"
+                              <img src="{{ person.image }}" alt="No Image Available Right Now"
                               style="width: 100px; height: 100px; object-fit: cover;">
                               {% else %}
                                   No Image Available
