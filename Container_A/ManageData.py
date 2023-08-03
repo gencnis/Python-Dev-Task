@@ -273,7 +273,8 @@ class InterpolDataExtractor:
                     if data["total"] > 160:
                         more_than_160.append((ageMin, ageMax))
 
-                    # Clean the data for the current age interval and publish it
+                    # Clean the data for77777 ,
+                    # 8 the current age interval and publish it
                     self.clean_and_publish_data(notices)
 
                 else:
